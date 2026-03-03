@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ChecklistTemplate, ChecklistResponse } from '../types';
-import { localService } from '../services/localService';
+import { supabaseService } from '../services/supabaseService';
 import { generateChecklistPDF } from '../utils/pdfGenerator';
 
 interface ChecklistSummaryProps {
@@ -20,7 +20,7 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
     const fetchResponse = async () => {
       setLoading(true);
       try {
-        const responses = await localService.getResponses();
+        const responses = await supabaseService.getResponses();
         const found = responses.find(r => r.id === responseId);
         if (found) {
           setResponse(found);
@@ -43,7 +43,7 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
 
     setIsDeleting(true);
     try {
-      await localService.deleteResponse(response.id);
+      await supabaseService.deleteResponse(response.id);
       onBack();
     } catch (err) {
       alert('Erro ao excluir o checklist.');

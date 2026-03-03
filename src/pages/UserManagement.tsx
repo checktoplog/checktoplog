@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { localService } from '../services/localService';
+import { supabaseService } from '../services/supabaseService';
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -32,7 +32,7 @@ const UserManagement: React.FC = () => {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const data = await localService.getUsers();
+      const data = await supabaseService.getUsers();
       setUsers(data || []);
     } catch (error) {
       console.error("Error loading users:", error);
@@ -57,7 +57,7 @@ const UserManagement: React.FC = () => {
         allowedScreens: formData.allowedScreens!
       };
 
-      await localService.saveUser(user);
+      await supabaseService.saveUser(user);
       await loadUsers();
       setShowModal(false);
       setEditingUser(null);
@@ -83,7 +83,7 @@ const UserManagement: React.FC = () => {
     if (confirm('Deseja excluir as permissões deste usuário?')) {
       setLoading(true);
       try {
-        await localService.deleteUser(id);
+        await supabaseService.deleteUser(id);
         await loadUsers();
       } catch (error) {
         console.error("Error deleting user:", error);

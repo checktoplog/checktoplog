@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ChecklistTemplate, ChecklistResponse, Stage, Question } from '../types';
-import { localService } from '../services/localService';
+import { supabaseService } from '../services/supabaseService';
 import { generateChecklistPDF } from '../utils/pdfGenerator';
 import { resizeImage } from '../utils/imageUtils';
 
@@ -139,7 +139,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   useEffect(() => {
     if (editId) {
       setLoading(true);
-      localService.getResponses().then(responses => {
+      supabaseService.getResponses().then(responses => {
         const existing = responses.find(r => r.id === editId);
         if (existing) {
           if (existing.status === 'DRAFT') {
@@ -215,7 +215,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       };
 
       try {
-        await localService.saveResponse(dataToSave);
+        await supabaseService.saveResponse(dataToSave);
         setResponse(dataToSave);
         if (options?.forceTimeUpdate) {
           setSaveMessage({ type: 'success', text: 'Alterações salvas!' });

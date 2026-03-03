@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ChecklistTemplate, Stage, Question, QuestionType } from '../types';
-import { localService } from '../services/localService';
+import { supabaseService } from '../services/supabaseService';
 
 interface TemplateEditorProps {
   onBack: () => void;
@@ -28,7 +28,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
       const fetchTemplate = async () => {
         setLoading(true);
         try {
-          const templates = await localService.getTemplates();
+          const templates = await supabaseService.getTemplates();
           const existing = templates.find(t => t.id === editId);
           if (existing) {
             setTemplate({
@@ -125,7 +125,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
   const save = async () => {
     if (!template.title.trim()) return alert('Defina um título.');
     setSaving(true);
-    await localService.saveTemplate(template);
+    await supabaseService.saveTemplate(template);
     setSaving(false);
     onBack();
   };

@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
-import { localService } from './services/localService.ts';
+import { supabaseService } from './services/supabaseService.ts';
+import { supabase } from './supabaseClient.ts';
 import Layout from './components/Layout.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import TemplateEditor from './pages/TemplateEditor.tsx';
@@ -87,7 +88,7 @@ const App: React.FC = () => {
 
   const fetchResponses = async () => {
     try {
-      const resps = await localService.getResponses();
+      const resps = await supabaseService.getResponses();
       setResponses(resps);
     } catch (err) {
       console.error("Erro ao atualizar respostas:", err);
@@ -103,10 +104,18 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        const u = await localService.getUser();
-        if (u) {
-          setUser(u);
-          userRef.current = u;
+        // Check current session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const syncedUser = await supabaseService.syncUser(session.user);
+          setUser(syncedUser);
+          userRef.current = syncedUser;
+        } else {
+          const u = await supabaseService.getUser();
+          if (u) {
+            setUser(u);
+            userRef.current = u;
+          }
         }
       } catch (e) {
         console.error("Init error", e);
@@ -114,15 +123,41 @@ const App: React.FC = () => {
         setLoading(false);
       }
     };
+
     init();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const syncedUser = await supabaseService.syncUser(session.user);
+        setUser(syncedUser);
+        userRef.current = syncedUser;
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        userRef.current = null;
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  const handleGoogleLogin = async () => {
+    try {
+      await supabaseService.signInWithGoogle();
+    } catch (err) {
+      console.error("Google login error", err);
+      alert("Erro ao entrar com Google");
+    }
+  };
 
   const loadData = useCallback(async () => {
     if (!userRef.current) return;
     try {
       const [t, r] = await Promise.all([
-        localService.getTemplates(),
-        localService.getResponses()
+        supabaseService.getTemplates(),
+        supabaseService.getResponses()
       ]);
       setTemplates(t || []);
       setResponses(r || []);
@@ -136,13 +171,13 @@ const App: React.FC = () => {
   }, [loadData, currentPage, user]);
 
   const handleLogin = async (email: string) => {
-    const u = await localService.login(email);
+    const u = await supabaseService.login(email);
     setUser(u);
     userRef.current = u;
   };
 
   const handleLogout = async () => {
-    await localService.logout();
+    await supabaseService.logout();
     setUser(null);
     userRef.current = null;
   };
@@ -150,7 +185,7 @@ const App: React.FC = () => {
   const handleDeleteTemplate = async (id: string) => {
     if (window.confirm('Deseja realmente excluir este modelo? Todos os dados vinculados a ele podem ser afetados.')) {
       try {
-        await localService.deleteTemplate(id);
+        await supabaseService.deleteTemplate(id);
         await loadData();
       } catch (err) {
         alert('Erro ao excluir modelo.');
@@ -161,7 +196,7 @@ const App: React.FC = () => {
   const handleDeleteResponse = async (id: string) => {
     if (window.confirm('Deseja realmente excluir este registro do histórico? Esta ação é irreversível.')) {
       try {
-        await localService.deleteResponse(id);
+        await supabaseService.deleteResponse(id);
         await loadData();
       } catch (err) {
         alert('Erro ao excluir registro.');
@@ -176,7 +211,7 @@ const App: React.FC = () => {
         id: `tmpl_${Math.random().toString(36).substr(2, 9)}`,
         title: `${template.title} (Cópia)`
       };
-      await localService.saveTemplate(newTemplate);
+      await supabaseService.saveTemplate(newTemplate);
       await loadData();
     } catch (err) {
       alert('Erro ao duplicar modelo.');
@@ -355,7 +390,7 @@ const App: React.FC = () => {
           {renderContent()}
         </Layout>
       ) : (
-        <LoginPage onLogin={handleLogin} />
+        <LoginPage onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} />
       )}
     </ErrorBoundary>
   );

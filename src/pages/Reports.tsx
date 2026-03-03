@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { localService } from '../services/localService';
+import { supabaseService } from '../services/supabaseService';
 import { ChecklistTemplate, ChecklistResponse } from '../types';
 
 interface TemplateStat {
@@ -40,8 +40,8 @@ const Reports: React.FC = () => {
 
       try {
         const [tData, rData] = await Promise.all([
-          localService.getTemplates(),
-          localService.getResponses()
+          supabaseService.getTemplates(),
+          supabaseService.getResponses()
         ]);
         setTemplates(tData);
         setResponses(rData);

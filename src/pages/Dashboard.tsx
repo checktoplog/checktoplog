@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { localService } from '../services/localService.ts';
+import { supabaseService } from '../services/supabaseService.ts';
 import { ChecklistTemplate, ChecklistResponse } from '../types.ts';
 
 interface DashboardProps {
@@ -39,8 +39,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onNewTemplate }) => {
     const fetchData = async () => {
       try {
         const [templates, responses] = await Promise.all([
-          localService.getTemplates(),
-          localService.getResponses()
+          supabaseService.getTemplates(),
+          supabaseService.getResponses()
         ]);
 
         if (!isMounted) return;

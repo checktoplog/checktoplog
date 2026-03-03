@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { localService } from '../services/localService';
+import { supabaseService } from '../services/supabaseService';
 import { ChecklistTemplate, ChecklistResponse } from '../types';
 import { generateChecklistPDF } from '../utils/pdfGenerator';
 
@@ -32,8 +32,8 @@ const BatchDownload: React.FC = () => {
 
       try {
         const [templates, responses] = await Promise.all([
-          localService.getTemplates(),
-          localService.getResponses()
+          supabaseService.getTemplates(),
+          supabaseService.getResponses()
         ]);
 
         const checklistItems = responses
