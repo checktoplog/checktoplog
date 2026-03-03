@@ -1,0 +1,9 @@
+{
+  "name": "CheckTopLog",
+  "description": "Sistema profissional de checklists inteligentes com integração Supabase e geração de PDF customizado.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
