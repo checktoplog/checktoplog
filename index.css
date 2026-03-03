@@ -1,64 +1,7 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-}
-
-@layer base {
-  :root {
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-left: env(safe-area-inset-left, 0px);
-    --safe-right: env(safe-area-inset-right, 0px);
-  }
-
-  html, body {
-    @apply h-full w-full overflow-hidden bg-gray-50;
-    -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    user-select: none;
-  }
-
-  #root {
-    @apply h-full w-full flex flex-col;
-  }
-}
-
-@layer utilities {
-  .pt-safe {
-    padding-top: var(--safe-top);
-  }
-  .pb-safe {
-    padding-bottom: var(--safe-bottom);
-  }
-  .pl-safe {
-    padding-left: var(--safe-left);
-  }
-  .pr-safe {
-    padding-right: var(--safe-right);
-  }
-  
-  .h-screen-safe {
-    height: 100dvh;
-  }
-}
-
-/* Custom scrollbar for mobile feel */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #e5e7eb;
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #d1d5db;
+/* Global Styles */
+body {
+  margin: 0;
+  padding: 0;
 }
