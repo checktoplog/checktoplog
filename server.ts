@@ -56,12 +56,14 @@ app.get("/api/auth/google/url", (req, res) => {
 app.get("/auth/google/callback", async (req, res) => {
   const { code } = req.query;
   const redirectUri = getRedirectUri(req);
+  console.log("Google Callback - Code received, Redirect URI:", redirectUri);
 
   try {
     const { tokens } = await client.getToken({
       code: code as string,
       redirect_uri: redirectUri,
     });
+    console.log("Google Callback - Tokens obtained successfully");
     client.setCredentials(tokens);
 
     // Get user info
@@ -70,6 +72,7 @@ app.get("/auth/google/callback", async (req, res) => {
       audience: GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
+    console.log("Google Callback - User payload:", payload?.email);
 
     // Set user info in a cookie (SameSite=None, Secure=true for iframe support)
     res.cookie("user", JSON.stringify(payload), {
@@ -79,15 +82,26 @@ app.get("/auth/google/callback", async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
+    console.log("Google Callback - Cookie set, sending success script");
+
     // Send success message to parent window and close popup
     res.send(`
       <html>
         <body>
           <script>
+            console.log("Callback script executing...");
             if (window.opener) {
-              window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
-              window.close();
+              console.log("Notifying opener...");
+              window.opener.postMessage({ 
+                type: 'OAUTH_AUTH_SUCCESS',
+                user: ${JSON.stringify(payload)}
+              }, '*');
+              setTimeout(() => {
+                console.log("Closing popup...");
+                window.close();
+              }, 500);
             } else {
+              console.log("No opener found, redirecting to home...");
               window.location.href = '/';
             }
           </script>
@@ -104,8 +118,14 @@ app.get("/auth/google/callback", async (req, res) => {
 // 3. Get Current User
 app.get("/api/auth/me", (req, res) => {
   const userCookie = req.cookies.user;
+  console.log("API Auth Me - Cookie present:", !!userCookie);
   if (userCookie) {
-    res.json(JSON.parse(userCookie));
+    try {
+      res.json(JSON.parse(userCookie));
+    } catch (e) {
+      console.error("API Auth Me - Error parsing cookie:", e);
+      res.status(500).json({ error: "Erro ao processar sessão" });
+    }
   } else {
     res.status(401).json({ error: "Não autenticado" });
   }
