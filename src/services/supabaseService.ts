@@ -146,7 +146,23 @@ export const supabaseService = {
       console.error('Erro ao fazer logout:', err);
     } finally {
       localStorage.removeItem('checklist_user');
+      window.location.reload(); // Force reload to clear state
     }
+  },
+
+  async signInWithGoogle(): Promise<void> {
+    if (!canUseSupabase()) {
+      throw new Error('Supabase não configurado.');
+    }
+    
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+
+    if (error) throw error;
   },
 
   async getUser(): Promise<User | null> {

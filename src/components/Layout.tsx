@@ -95,6 +95,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
                 <p className="text-xs font-black truncate text-gray-900 leading-tight">{user.name}</p>
                 <p className="text-[9px] text-orange-600 uppercase font-black tracking-widest mt-0.5">{user.role}</p>
               </div>
+              <button 
+                onClick={onLogout}
+                className="w-8 h-8 flex items-center justify-center bg-gray-50 text-gray-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
+                title="Sair"
+              >
+                <span className="text-xs">🚪</span>
+              </button>
             </div>
           </div>
         </div>

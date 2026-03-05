@@ -11,6 +11,7 @@ import UserManagement from './pages/UserManagement.tsx';
 import Reports from './pages/Reports.tsx';
 import BatchDownload from './pages/BatchDownload.tsx';
 import Dashboard from './pages/Dashboard.tsx';
+import LoginPage from './pages/LoginPage.tsx';
 
 interface ErrorBoundaryProps {
   children?: React.ReactNode;
@@ -77,8 +78,8 @@ const GUEST_USER: User = {
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(GUEST_USER);
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isBroken, setIsBroken] = useState(isSupabaseBroken());
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
@@ -180,7 +181,9 @@ const App: React.FC = () => {
   }, [loadData, currentPage, user]);
 
   const handleLogout = async () => {
-    // No-op as we removed login screen
+    if (window.confirm('Deseja realmente sair?')) {
+      await supabaseService.logout();
+    }
   };
 
   const handleDeleteTemplate = async (id: string) => {
@@ -425,9 +428,13 @@ const App: React.FC = () => {
     );
   }
 
+  if (!user) {
+    return <LoginPage onLoginSuccess={() => {}} />;
+  }
+
   return (
     <ErrorBoundary>
-      <Layout user={user || GUEST_USER} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
+      <Layout user={user} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
         {renderContent()}
       </Layout>
     </ErrorBoundary>
