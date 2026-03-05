@@ -27,8 +27,12 @@ export const markSupabaseAsBroken = () => {
   if (!runtimeSupabaseBroken) {
     console.warn('Supabase marked as broken at runtime.');
     runtimeSupabaseBroken = true;
+    // Trigger a custom event so the app can react
+    window.dispatchEvent(new CustomEvent('supabase-broken'));
   }
 };
+
+export const isSupabaseBroken = () => runtimeSupabaseBroken;
 
 export const canUseSupabaseRuntime = () => isSupabaseConfigured && !runtimeSupabaseBroken;
 
