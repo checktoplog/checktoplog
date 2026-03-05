@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
 import { supabaseService } from './services/supabaseService.ts';
-import { supabase, canUseSupabaseRuntime } from './supabaseClient.ts';
+import { supabase, canUseSupabaseRuntime, isSupabaseConfigured } from './supabaseClient.ts';
 import Layout from './components/Layout.tsx';
 import TemplateEditor from './pages/TemplateEditor.tsx';
 import ChecklistRunner from './pages/ChecklistRunner.tsx';
@@ -378,6 +378,37 @@ const App: React.FC = () => {
   };
 
   if (loading) return <div className="h-screen w-full flex items-center justify-center bg-gray-50"><div className="w-16 h-16 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div></div>;
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50 p-6">
+        <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-orange-100 max-w-md w-full text-center">
+          <div className="text-6xl mb-6">⚙️</div>
+          <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter mb-4">Configuração Necessária</h2>
+          <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+            Este aplicativo é <strong>100% dependente do Supabase</strong>. Para funcionar, você precisa configurar as variáveis de ambiente:
+          </p>
+          <div className="bg-orange-50 p-6 rounded-2xl text-left mb-8 space-y-3 border border-orange-100">
+            <div className="flex items-center space-x-2">
+              <span className="text-orange-600 font-black text-[10px]">●</span>
+              <code className="text-[10px] font-mono font-bold text-orange-800">VITE_SUPABASE_URL</code>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-orange-600 font-black text-[10px]">●</span>
+              <code className="text-[10px] font-mono font-bold text-orange-800">VITE_SUPABASE_ANON_KEY</code>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-200 active:scale-95"
+          >
+            Verificar Novamente
+          </button>
+          <p className="mt-6 text-[9px] text-gray-400 uppercase font-black tracking-widest">Acesse o painel do Supabase para obter as chaves</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>

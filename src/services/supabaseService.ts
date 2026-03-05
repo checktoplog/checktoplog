@@ -1,6 +1,5 @@
 import { supabase, isSupabaseConfigured, canUseSupabaseRuntime, markSupabaseAsBroken } from '../supabaseClient';
 import { User, ChecklistTemplate, ChecklistResponse } from '../types';
-import { localService } from './localService';
 
 const checkSupabaseError = (error: any) => {
   if (!error) return false;
@@ -26,7 +25,7 @@ export const supabaseService = {
   async syncUser(sessionUser: any): Promise<User | null> {
     if (!sessionUser) return null;
     if (!canUseSupabase()) {
-      return localService.login(sessionUser.email);
+      throw new Error('Supabase não configurado ou com erro de conexão.');
     }
 
     const email = sessionUser.email;
@@ -100,8 +99,7 @@ export const supabaseService = {
 
   async login(email: string, password?: string): Promise<User | null> {
     if (!canUseSupabase()) {
-      console.warn('Supabase não configurado. Usando modo local.');
-      return localService.login(email);
+      throw new Error('O sistema de autenticação (Supabase) não está configurado corretamente.');
     }
 
     if (password) {
@@ -159,7 +157,7 @@ export const supabaseService = {
   // Templates
   async getTemplates(): Promise<ChecklistTemplate[]> {
     if (!canUseSupabase()) {
-      return localService.getTemplates();
+      throw new Error('Supabase não configurado ou com erro de conexão.');
     }
     try {
       const { data, error } = await supabase
@@ -189,7 +187,7 @@ export const supabaseService = {
 
   async saveTemplate(template: ChecklistTemplate): Promise<void> {
     if (!canUseSupabase()) {
-      return localService.saveTemplate(template);
+      throw new Error('Supabase não configurado ou com erro de conexão.');
     }
     try {
       const dbTemplate = {
@@ -218,7 +216,7 @@ export const supabaseService = {
   },
 
   async deleteTemplate(id: string): Promise<void> {
-    if (!canUseSupabase()) return localService.deleteTemplate(id);
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const { error } = await supabase
         .from('templates')
@@ -238,7 +236,7 @@ export const supabaseService = {
 
   // Responses
   async getResponses(): Promise<ChecklistResponse[]> {
-    if (!canUseSupabase()) return localService.getResponses();
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const { data, error } = await supabase
         .from('responses')
@@ -271,7 +269,7 @@ export const supabaseService = {
   },
 
   async getResponseById(id: string): Promise<ChecklistResponse | null> {
-    if (!canUseSupabase()) return localService.getResponseById(id);
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const { data: r, error } = await supabase
         .from('responses')
@@ -305,7 +303,7 @@ export const supabaseService = {
   },
 
   async saveResponse(response: ChecklistResponse): Promise<void> {
-    if (!canUseSupabase()) return localService.saveResponse(response);
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const dbResponse = {
         id: response.id,
@@ -337,7 +335,7 @@ export const supabaseService = {
   },
 
   async deleteResponse(id: string): Promise<void> {
-    if (!canUseSupabase()) return localService.deleteResponse(id);
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const { error } = await supabase
         .from('responses')
@@ -357,7 +355,7 @@ export const supabaseService = {
 
   // Users Management
   async getUsers(): Promise<User[]> {
-    if (!canUseSupabase()) return localService.getUsers();
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const { data, error } = await supabase
         .from('users')
@@ -383,7 +381,7 @@ export const supabaseService = {
   },
 
   async saveUser(user: User): Promise<void> {
-    if (!canUseSupabase()) return localService.saveUser(user);
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const dbUser = {
         id: user.id,
@@ -410,7 +408,7 @@ export const supabaseService = {
   },
 
   async deleteUser(id: string): Promise<void> {
-    if (!canUseSupabase()) return localService.deleteUser(id);
+    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
     try {
       const { error } = await supabase
         .from('users')
