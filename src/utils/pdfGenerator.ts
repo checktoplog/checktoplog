@@ -3,7 +3,13 @@ import { ChecklistResponse, ChecklistTemplate } from '../types';
 
 export const generateChecklistPDF = (response: ChecklistResponse, template: ChecklistTemplate) => {
   // @ts-ignore
-  const { jsPDF } = window.jspdf;
+  const jspdfLib = window.jspdf;
+  if (!jspdfLib) {
+    console.error("jsPDF library not found on window.jspdf");
+    throw new Error("Biblioteca de geração de PDF não encontrada.");
+  }
+  
+  const { jsPDF } = jspdfLib;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -23,74 +29,107 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
   // Info Section
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(10);
-  doc.text(`Modelo: ${template.title}`, 15, 55);
-  doc.text(`Identificação: ${response.customId}`, 15, 62);
-  doc.text(`Data/Hora: ${new Date(response.updatedAt).toLocaleString('pt-BR')}`, 15, 69);
+  doc.setFont('helvetica', 'bold');
+  doc.text('INFORMAÇÕES GERAIS', 15, 50);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(`Modelo: ${template.title || 'N/A'}`, 15, 58);
+  doc.text(`Identificação: ${response.customId || 'N/A'}`, 15, 64);
+  
+  const dateStr = response.updatedAt ? new Date(response.updatedAt).toLocaleString('pt-BR') : 'N/A';
+  doc.text(`Data/Hora: ${dateStr}`, 15, 70);
   doc.text(`Status: ${response.status === 'COMPLETED' ? 'CONCLUÍDO' : 'RASCUNHO'}`, 15, 76);
+  doc.text(`ID do Registro: ${response.id}`, 15, 82);
 
-  let yPos = 85;
+  let yPos = 95;
+
+  if (!template.stages || template.stages.length === 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.text("Nenhuma etapa ou resposta encontrada para este checklist.", 15, yPos);
+    return doc;
+  }
 
     const allImages: { label: string, data: string[] }[] = [];
 
     template.stages.forEach((stage) => {
-      if (yPos > 250) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      doc.setFillColor(245, 245, 245);
-      doc.rect(15, yPos, pageWidth - 30, 8, 'F');
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(234, 88, 12);
-      doc.text(stage.name.toUpperCase(), 20, yPos + 5.5);
-      yPos += 12;
-
+      // Get questions for this stage that have data
+      const stageData = response.data[stage.id] || {};
+      
       const tableData = stage.questions.map((q) => {
-        const qData = response.data[stage.id]?.[q.id];
-        const val = (qData && typeof qData === 'object' && 'val' in qData) ? qData.val : (qData || null);
-        const imgs = (qData && typeof qData === 'object' && qData.imgs) ? qData.imgs : [];
+        const qData = stageData[q.id];
+        
+        // Extract value and images safely
+        let val: any = null;
+        let imgs: string[] = [];
+        let note = '';
+
+        if (qData && typeof qData === 'object') {
+          val = 'val' in qData ? qData.val : qData;
+          imgs = qData.imgs || [];
+          note = qData.note || '';
+        } else {
+          val = qData;
+        }
         
         if (imgs.length > 0) {
           allImages.push({ label: q.text, data: imgs });
         }
 
         let displayVal = val;
-        if (q.type === 'SIGNATURE') displayVal = val ? '[Assinado Digitalmente]' : '[Pendente]';
+        if (q.type === 'SIGNATURE') {
+          displayVal = val ? '[Assinado Digitalmente]' : '[Pendente]';
+          if (val && typeof val === 'string' && val.startsWith('data:image')) {
+            allImages.push({ label: `Assinatura: ${q.text}`, data: [val] });
+          }
+        }
         else if (q.type === 'IMAGE') displayVal = imgs.length > 0 ? `[${imgs.length} Foto(s) Anexada(s)]` : '[Nenhuma Foto]';
         else if (Array.isArray(val)) displayVal = val.join(', ');
         else if (val === true) displayVal = 'Sim';
         else if (val === false) displayVal = 'Não';
-        else if (val === null || val === undefined || val === 'null') displayVal = '---';
+        else if (val === null || val === undefined || String(val) === 'null' || String(val) === '') displayVal = '---';
 
         // If it's not an IMAGE type but has photos attached, mention it
-        if (q.type !== 'IMAGE' && imgs.length > 0) {
+        if (q.type !== 'IMAGE' && q.type !== 'SIGNATURE' && imgs.length > 0) {
           displayVal = `${displayVal || '---'} [${imgs.length} Foto(s) Anexada(s)]`;
         }
 
-        const note = (qData && typeof qData === 'object' && qData.note) ? `\nObs: ${qData.note}` : '';
-        const finalVal = displayVal === null || displayVal === undefined || displayVal === 'null' ? '---' : displayVal;
+        const finalNote = note ? `\nObs: ${note}` : '';
+        const finalVal = (displayVal === null || displayVal === undefined) ? '---' : displayVal;
 
-        return [q.text, String(finalVal) + note];
+        return [q.text, String(finalVal) + finalNote];
       });
 
-      // @ts-ignore
-      doc.autoTable({
-        startY: yPos,
-        head: [['Campo', 'Resposta']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: { fillColor: [60, 60, 60], fontSize: 8 },
-        bodyStyles: { fontSize: 8 },
-        columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
-        margin: { left: 15, right: 15 },
-        didDrawPage: (data: any) => {
-          yPos = data.cursor.y;
+      if (tableData.length > 0) {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
         }
-      });
 
-      // @ts-ignore
-      yPos = doc.lastAutoTable.finalY + 10;
+        doc.setFillColor(245, 245, 245);
+        doc.rect(15, yPos, pageWidth - 30, 8, 'F');
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(234, 88, 12);
+        doc.text(stage.name.toUpperCase(), 20, yPos + 5.5);
+        yPos += 10;
+
+        // @ts-ignore
+        doc.autoTable({
+          startY: yPos,
+          head: [['Campo', 'Resposta']],
+          body: tableData,
+          theme: 'grid',
+          headStyles: { fillColor: [60, 60, 60], fontSize: 8 },
+          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
+          columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
+          margin: { left: 15, right: 15 },
+          styles: { overflow: 'linebreak', cellPadding: 3 },
+        });
+
+        // @ts-ignore
+        yPos = doc.lastAutoTable.finalY + 10;
+      }
     });
 
     // Add Images Section
@@ -126,6 +165,8 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
         const photoSize = 55;
 
         imgGroup.data.forEach((photo) => {
+          if (!photo || typeof photo !== 'string' || !photo.startsWith('data:image')) return;
+
           if (xPos + photoSize > pageWidth - 15) {
             xPos = 15;
             yPos += photoSize + 5;
@@ -138,7 +179,11 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
           }
 
           try {
-            doc.addImage(photo, 'JPEG', xPos, yPos, photoSize, photoSize);
+            // Auto-detect format from data URL if possible
+            const formatMatch = photo.match(/^data:image\/([a-z]+);base64,/);
+            const format = formatMatch ? formatMatch[1].toUpperCase() : 'JPEG';
+            
+            doc.addImage(photo, format, xPos, yPos, photoSize, photoSize, undefined, 'FAST');
             xPos += photoSize + 5;
           } catch (e) {
             console.error("Erro ao adicionar imagem ao PDF", e);

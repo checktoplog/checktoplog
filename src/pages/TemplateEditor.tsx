@@ -125,9 +125,15 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
   const save = async () => {
     if (!template.title.trim()) return alert('Defina um título.');
     setSaving(true);
-    await supabaseService.saveTemplate(template);
-    setSaving(false);
-    onBack();
+    try {
+      await supabaseService.saveTemplate(template);
+      onBack();
+    } catch (err: any) {
+      console.error("Erro ao salvar modelo:", err);
+      alert(`Erro ao salvar modelo: ${err.message || 'Verifique sua conexão.'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <div className="h-screen flex items-center justify-center">Carregando...</div>;
@@ -177,8 +183,15 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
               <input type="file" className="hidden" accept="image/*" onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  const comp = await compressImage(file);
-                  setTemplate(prev => ({ ...prev, image: comp }));
+                  setLoading(true);
+                  try {
+                    const comp = await compressImage(file);
+                    const path = `cover_${template.id}_${Date.now()}.jpg`;
+                    const url = await supabaseService.uploadFile('templates', path, comp);
+                    setTemplate(prev => ({ ...prev, image: url || comp }));
+                  } finally {
+                    setLoading(false);
+                  }
                 }
               }} />
             </label>

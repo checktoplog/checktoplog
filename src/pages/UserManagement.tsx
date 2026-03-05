@@ -13,7 +13,7 @@ const UserManagement: React.FC = () => {
     name: '',
     email: '',
     role: 'USER',
-    allowedScreens: ['checklists']
+    allowedScreens: ['checklists', 'batch_download']
   });
 
   const availableScreens = [
@@ -61,7 +61,7 @@ const UserManagement: React.FC = () => {
       await loadUsers();
       setShowModal(false);
       setEditingUser(null);
-      setFormData({ name: '', email: '', role: 'USER', allowedScreens: ['checklists'] });
+      setFormData({ name: '', email: '', role: 'USER', allowedScreens: ['checklists', 'batch_download'] });
     } catch (error) {
       console.error("Error saving user:", error);
       alert("Erro ao salvar usuário.");

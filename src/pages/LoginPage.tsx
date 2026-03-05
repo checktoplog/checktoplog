@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { isSupabaseConfigured } from '../supabaseClient';
 
 interface LoginPageProps {
-  onLogin: (email: string) => void;
+  onLogin: (email: string, password?: string) => void;
   onGoogleLogin: () => void;
 }
 
@@ -11,19 +12,27 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoogleLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isConfigured, setIsConfigured] = useState(isSupabaseConfigured);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    setIsConfigured(isSupabaseConfigured);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Por favor, preencha todos os campos.');
       return;
     }
     setLoading(true);
-    // Simular delay de rede
-    setTimeout(() => {
-      onLogin(email);
+    setError('');
+    try {
+      await onLogin(email, password);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao fazer login. Verifique suas credenciais.');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (
@@ -37,14 +46,29 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoogleLogin }) => {
         
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tighter mb-1">CheckTopLog</h1>
-          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">
-            Acesso Local (Modo Desenvolvimento)
+          <p className={`font-bold uppercase text-[10px] tracking-widest ${isConfigured ? 'text-green-500' : 'text-red-500'}`}>
+            {isConfigured ? '● Sistema de Autenticação Ativo' : '○ Erro: Supabase não configurado'}
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-500 p-4 rounded-xl text-xs font-bold w-full border border-red-100 text-left">
-            ⚠️ {error}
+          <div className="bg-red-50 text-red-500 p-4 rounded-xl text-xs font-bold w-full border border-red-100 text-left space-y-2">
+            <p>⚠️ {error}</p>
+            {error.includes('Configuração') && (
+              <div className="mt-2 p-3 bg-white/50 rounded-lg border border-red-200 text-[10px] font-normal text-red-600 space-y-1">
+                <p className="font-black uppercase tracking-widest text-[9px]">Como resolver:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Acesse o painel do Supabase.</li>
+                  <li>Vá em Project Settings &gt; API.</li>
+                  <li>Copie a <b>Project URL</b> e a <b>anon public key</b>.</li>
+                  <li>No AI Studio, adicione as variáveis:</li>
+                  <ul className="list-disc list-inside ml-2 font-mono">
+                    <li>VITE_SUPABASE_URL</li>
+                    <li>VITE_SUPABASE_ANON_KEY</li>
+                  </ul>
+                </ol>
+              </div>
+            )}
           </div>
         )}
 
@@ -97,7 +121,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoogleLogin }) => {
         </button>
 
         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-          Utilize qualquer e-mail e senha para acessar.
+          Utilize seu e-mail e senha cadastrados no Supabase.
         </p>
       </div>
     </div>

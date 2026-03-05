@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import QRCode from 'react-qr-code';
+import { isSupabaseConfigured } from '../supabaseClient';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,9 +15,6 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, onNavigate }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
-
-  // Debug para verificar permissões
-  console.log("User Permissions:", { role: user.role, screens: user.allowedScreens });
 
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: '🏠' },

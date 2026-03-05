@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
 import { supabaseService } from './services/supabaseService.ts';
-import { supabase } from './supabaseClient.ts';
+import { supabase, isSupabaseConfigured, canUseSupabaseRuntime } from './supabaseClient.ts';
 import Layout from './components/Layout.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import TemplateEditor from './pages/TemplateEditor.tsx';
@@ -104,16 +104,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. Check Google Auth Session (Server-side)
-        const googleUser = await supabaseService.getCurrentUser();
-        if (googleUser) {
-          setUser(googleUser);
-          userRef.current = googleUser;
-          setLoading(false);
-          return;
-        }
-
-        // 2. Fallback to Supabase Session
+        // 1. Check Supabase Session
         if (canUseSupabaseRuntime()) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
@@ -184,18 +175,10 @@ const App: React.FC = () => {
             userRef.current = syncedUser;
           }
         } else if (event === 'SIGNED_OUT') {
-          // Check if we have a Google session before clearing everything
-          const googleUser = await supabaseService.getCurrentUser();
-          if (!googleUser) {
-            console.log("No Google session found, clearing user state.");
-            setUser(null);
-            userRef.current = null;
-            localStorage.removeItem('checklist_user');
-          } else {
-            console.log("Google session still active, keeping user.");
-            setUser(googleUser);
-            userRef.current = googleUser;
-          }
+          console.log("Signed out from Supabase, clearing user state.");
+          setUser(null);
+          userRef.current = null;
+          localStorage.removeItem('checklist_user');
         }
       });
       subscription = data.subscription;
@@ -209,14 +192,16 @@ const App: React.FC = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      const url = await supabaseService.getGoogleAuthUrl();
-      const authWindow = window.open(url, 'google_oauth_popup', 'width=600,height=700');
-      if (!authWindow) {
-        alert("Por favor, permita popups para este site.");
-      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'https://checktoplog-production.up.railway.app'
+        }
+      });
+      if (error) throw error;
     } catch (err) {
       console.error("Google login error", err);
-      alert("Erro ao entrar com Google");
+      alert("Erro ao entrar com Google via Supabase");
     }
   };
 

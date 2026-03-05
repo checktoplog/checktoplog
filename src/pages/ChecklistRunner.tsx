@@ -187,7 +187,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     }
   }, [editId, template]);
 
-  const persistData = async (options?: { forceTimeUpdate?: boolean, finalStatus?: 'DRAFT' | 'COMPLETED', pdfUrl?: string }) => {
+  const persistData = async (options?: { forceTimeUpdate?: boolean, finalStatus?: 'DRAFT' | 'COMPLETED', pdfUrl?: string, customData?: any }) => {
     if (!dataLoadedRef.current) return;
 
     if (!options?.finalStatus && saveInProgressRef.current) {
@@ -206,6 +206,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
       const dataToSave: ChecklistResponse = {
         ...response,
+        data: options?.customData || response.data,
         status: options?.finalStatus || response.status,
         stageTimeSpent: updatedTime,
         currentStageId: template.stages[currentStageIdx].id,
@@ -400,37 +401,80 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     if (!confirm("Confirmar finalização do checklist?")) return;
 
     setLoading(true);
-    setFinalizeProgress('Salvando respostas...');
+    setFinalizeProgress('Preparando arquivos...');
 
     let finalPdfUrl = '';
+    const updatedData = JSON.parse(JSON.stringify(response.data));
 
     try {
-      // 1. Gera PDF (se falhar, não impede o salvamento das respostas)
-      try {
-        if ((window as any).jspdf) {
-          setFinalizeProgress('Gerando PDF...');
-          const doc = generateChecklistPDF(response, template);
-          // Em modo local, apenas simulamos o upload ou poderíamos salvar o blob localmente
-          setFinalizeProgress('Simulando salvamento do PDF...');
-          finalPdfUrl = 'local-pdf-simulated-url';
+      // 1. Upload de Imagens e Assinaturas para o Storage
+      setFinalizeProgress('Enviando fotos e assinaturas...');
+      
+      for (const stageId in updatedData) {
+        for (const qId in updatedData[stageId]) {
+          const qData = updatedData[stageId][qId];
+          const question = template.stages.find(s => s.id === stageId)?.questions.find(q => q.id === qId);
+          
+          if (!question) continue;
+
+          // Upload de Imagens
+          if (qData.imgs && qData.imgs.length > 0) {
+            const uploadedImgs = [];
+            for (let i = 0; i < qData.imgs.length; i++) {
+              const img = qData.imgs[i];
+              if (img.startsWith('data:image')) {
+                const path = `${response.id}/${qId}_img_${i}_${Date.now()}.jpg`;
+                const url = await supabaseService.uploadFile('checklists', path, img);
+                uploadedImgs.push(url || img);
+              } else {
+                uploadedImgs.push(img);
+              }
+            }
+            updatedData[stageId][qId].imgs = uploadedImgs;
+          }
+
+          // Upload de Assinatura
+          if (question.type === 'SIGNATURE' && qData.val && qData.val.startsWith('data:image')) {
+            const path = `${response.id}/${qId}_signature_${Date.now()}.png`;
+            const url = await supabaseService.uploadFile('checklists', path, qData.val);
+            updatedData[stageId][qId].val = url || qData.val;
+          }
         }
-      } catch (pdfErr) {
-        console.warn("PDF não gerado, salvando apenas dados:", pdfErr);
       }
 
-      // 2. SALVAMENTO CRÍTICO: Muda status para COMPLETED e grava no DB local
-      setFinalizeProgress('Gravando no Histórico...');
+      // Atualiza o estado local com as URLs antes de gerar o PDF
+      const responseWithUrls = { ...response, data: updatedData };
+
+      // 2. Gera PDF
+      try {
+        if ((window as any).jspdf) {
+          setFinalizeProgress('Gerando relatório PDF...');
+          const doc = generateChecklistPDF(responseWithUrls, template);
+          const pdfBlob = doc.output('blob');
+          
+          setFinalizeProgress('Enviando PDF para o servidor...');
+          const pdfPath = `report_${response.id}_${Date.now()}.pdf`;
+          const url = await supabaseService.uploadFile('reports', pdfPath, pdfBlob);
+          finalPdfUrl = url || '';
+        }
+      } catch (pdfErr) {
+        console.warn("PDF não gerado ou erro no upload:", pdfErr);
+      }
+
+      // 3. SALVAMENTO FINAL: Muda status para COMPLETED e grava no DB
+      setFinalizeProgress('Finalizando registro...');
       await persistData({ 
         forceTimeUpdate: true, 
         finalStatus: 'COMPLETED', 
-        pdfUrl: finalPdfUrl 
+        pdfUrl: finalPdfUrl,
+        customData: updatedData
       });
 
       setLoading(false);
       onBack();
     } catch (err: any) {
       console.error("Erro ao finalizar:", err);
-      alert(`⚠️ Falha ao salvar no histórico: ${err.message || 'Erro local'}`);
+      alert(`⚠️ Falha ao finalizar checklist: ${err.message || 'Erro desconhecido'}`);
       setLoading(false);
     }
   };

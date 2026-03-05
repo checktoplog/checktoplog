@@ -20,7 +20,7 @@ export const localService = {
       name: email.split('@')[0],
       email: email,
       role: 'ADMIN',
-      allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'users']
+      allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users']
     };
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     return user;
