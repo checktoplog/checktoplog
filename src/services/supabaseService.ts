@@ -115,7 +115,7 @@ export const supabaseService = {
           
           // Check if it's an API key error and mark as broken
           if (checkSupabaseError(authError)) {
-            throw new Error('Erro de Configuração: A chave de API do Supabase é inválida ou expirou. Verifique as variáveis de ambiente no painel do AI Studio.');
+            throw new Error('Erro de Configuração: A chave de API (anon key) não corresponde à URL do projeto Supabase ou é inválida. Verifique se copiou as chaves corretamente do painel do Supabase.');
           }
 
           throw new Error(authError.message === 'Invalid login credentials' 

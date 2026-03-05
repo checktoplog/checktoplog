@@ -52,8 +52,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoogleLogin }) => {
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-500 p-4 rounded-xl text-xs font-bold w-full border border-red-100 text-left space-y-2">
+          <div className="bg-red-50 text-red-500 p-4 rounded-xl text-xs font-bold w-full border border-red-100 text-left space-y-3">
             <p>⚠️ {error}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="text-[10px] bg-red-100 hover:bg-red-200 px-2 py-1 rounded transition-colors uppercase tracking-wider"
+            >
+              Tentar Novamente / Recarregar
+            </button>
             {error.includes('Configuração') && (
               <div className="mt-2 p-3 bg-white/50 rounded-lg border border-red-200 text-[10px] font-normal text-red-600 space-y-1">
                 <p className="font-black uppercase tracking-widest text-[9px]">Como resolver:</p>

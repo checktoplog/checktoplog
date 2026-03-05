@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
 // Improved check to avoid using placeholder values
 export const isSupabaseConfigured = 
@@ -14,20 +14,23 @@ export const isSupabaseConfigured =
   !supabaseAnonKey.includes('your-anon-key') &&
   !supabaseAnonKey.includes('placeholder');
 
+if (!isSupabaseConfigured) {
+  console.error('SUPABASE CONFIGURATION MISSING: Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
+} else {
+  console.log('Supabase initialized with URL:', supabaseUrl.substring(0, 15) + '...');
+  console.log('Supabase Key starts with:', supabaseAnonKey.substring(0, 10) + '...');
+}
+
 let runtimeSupabaseBroken = false;
 
 export const markSupabaseAsBroken = () => {
   if (!runtimeSupabaseBroken) {
-    console.warn('Supabase marked as broken at runtime. Falling back to local mode.');
+    console.warn('Supabase marked as broken at runtime.');
     runtimeSupabaseBroken = true;
   }
 };
 
 export const canUseSupabaseRuntime = () => isSupabaseConfigured && !runtimeSupabaseBroken;
-
-if (!isSupabaseConfigured && (supabaseUrl || supabaseAnonKey)) {
-  console.warn('Supabase configuration appears invalid or incomplete. Falling back to local storage mode.');
-}
 
 // Use a valid-looking placeholder URL to prevent "Failed to fetch" from empty string
 const finalUrl = isSupabaseConfigured ? supabaseUrl : 'https://placeholder-project.supabase.co';
