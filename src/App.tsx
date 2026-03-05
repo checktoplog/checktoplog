@@ -2,9 +2,8 @@
 import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
 import { supabaseService } from './services/supabaseService.ts';
-import { supabase, isSupabaseConfigured, canUseSupabaseRuntime } from './supabaseClient.ts';
+import { supabase, canUseSupabaseRuntime } from './supabaseClient.ts';
 import Layout from './components/Layout.tsx';
-import LoginPage from './pages/LoginPage.tsx';
 import TemplateEditor from './pages/TemplateEditor.tsx';
 import ChecklistRunner from './pages/ChecklistRunner.tsx';
 import ChecklistSummary from './pages/ChecklistSummary.tsx';
@@ -69,9 +68,17 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
+const GUEST_USER: User = {
+  id: 'admin-user',
+  name: 'Administrador',
+  email: 'admin@checktoplog.com',
+  role: 'ADMIN',
+  allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
+};
+
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(GUEST_USER);
+  const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
   const [responses, setResponses] = useState<ChecklistResponse[]>([]);
@@ -104,24 +111,19 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. Check Supabase Session
+        // We no longer check for sessions, we use the default user
+        userRef.current = GUEST_USER;
+        
+        // However, we still want to sync if there is a real session in the background
         if (canUseSupabaseRuntime()) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             const syncedUser = await supabaseService.syncUser(session.user);
-            setUser(syncedUser);
-            userRef.current = syncedUser;
-          } else {
-            // Se não há sessão no Supabase, não permitimos login automático por localStorage
-            // a menos que seja uma sessão válida que possamos sincronizar.
-            setUser(null);
-            userRef.current = null;
+            if (syncedUser) {
+              setUser(syncedUser);
+              userRef.current = syncedUser;
+            }
           }
-        } else {
-          // Se o Supabase não está disponível, não permitimos acesso
-          setUser(null);
-          userRef.current = null;
-          localStorage.removeItem('checklist_user');
         }
       } catch (e) {
         console.error("Init error", e);
@@ -131,36 +133,6 @@ const App: React.FC = () => {
     };
 
     init();
-
-    // Listen for Google Auth success from popup
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        console.log("OAuth Success received, re-initializing...");
-        setLoading(true);
-        
-        if (event.data.user) {
-          // If user data is provided in the message, use it immediately
-          const googleUser: User = {
-            id: event.data.user.sub || event.data.user.id || crypto.randomUUID(),
-            email: event.data.user.email,
-            name: event.data.user.name || event.data.user.email.split('@')[0],
-            role: 'ADMIN',
-            allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
-          };
-          setUser(googleUser);
-          userRef.current = googleUser;
-          localStorage.setItem('checklist_user', JSON.stringify(googleUser));
-          setCurrentPage('dashboard');
-          setLoading(false);
-        } else {
-          // Wait a bit for server session to propagate
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await init();
-          setCurrentPage('dashboard');
-        }
-      }
-    };
-    window.addEventListener('message', handleMessage);
 
     // Listen for auth changes
     let subscription: any = null;
@@ -174,36 +146,15 @@ const App: React.FC = () => {
             setUser(syncedUser);
             userRef.current = syncedUser;
           }
-        } else if (event === 'SIGNED_OUT') {
-          console.log("Signed out from Supabase, clearing user state.");
-          setUser(null);
-          userRef.current = null;
-          localStorage.removeItem('checklist_user');
         }
       });
       subscription = data.subscription;
     }
 
     return () => {
-      window.removeEventListener('message', handleMessage);
       if (subscription) subscription.unsubscribe();
     };
   }, []);
-
-  const handleGoogleLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'https://checktoplog-production.up.railway.app'
-        }
-      });
-      if (error) throw error;
-    } catch (err) {
-      console.error("Google login error", err);
-      alert("Erro ao entrar com Google via Supabase");
-    }
-  };
 
   const loadData = useCallback(async () => {
     if (!userRef.current) return;
@@ -223,28 +174,8 @@ const App: React.FC = () => {
     if (user) loadData();
   }, [loadData, currentPage, user]);
 
-  const handleLogin = async (email: string, password?: string) => {
-    try {
-      console.log("Iniciando login para:", email);
-      const u = await supabaseService.login(email, password);
-      console.log("Login bem-sucedido:", u);
-      if (u) {
-        setUser(u);
-        userRef.current = u;
-        setCurrentPage('dashboard');
-      } else {
-        throw new Error("Não foi possível obter os dados do usuário após o login.");
-      }
-    } catch (err: any) {
-      console.error("Erro no handleLogin:", err);
-      throw err; // Re-throw para o LoginPage lidar com o erro no estado local
-    }
-  };
-
   const handleLogout = async () => {
-    await supabaseService.logout();
-    setUser(null);
-    userRef.current = null;
+    // No-op as we removed login screen
   };
 
   const handleDeleteTemplate = async (id: string) => {
@@ -450,13 +381,9 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      {user ? (
-        <Layout user={user} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
-          {renderContent()}
-        </Layout>
-      ) : (
-        <LoginPage onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} />
-      )}
+      <Layout user={user || GUEST_USER} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
+        {renderContent()}
+      </Layout>
     </ErrorBoundary>
   );
 };

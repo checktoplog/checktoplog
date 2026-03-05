@@ -76,6 +76,11 @@ export const localService = {
     localStorage.setItem(STORAGE_KEYS.RESPONSES, JSON.stringify(filtered));
   },
 
+  async getResponseById(id: string): Promise<ChecklistResponse | null> {
+    const responses = await this.getResponses();
+    return responses.find(r => r.id === id) || null;
+  },
+
   // Users
   async getUsers(): Promise<User[]> {
     const data = localStorage.getItem('checklist_users');

@@ -26,7 +26,7 @@ export const supabaseService = {
   async syncUser(sessionUser: any): Promise<User | null> {
     if (!sessionUser) return null;
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado. Autenticação obrigatória via Supabase.');
+      return localService.login(sessionUser.email);
     }
 
     const email = sessionUser.email;
@@ -100,7 +100,8 @@ export const supabaseService = {
 
   async login(email: string, password?: string): Promise<User | null> {
     if (!canUseSupabase()) {
-      throw new Error('O sistema de autenticação (Supabase) não está configurado corretamente. Verifique as variáveis de ambiente VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+      console.warn('Supabase não configurado. Usando modo local.');
+      return localService.login(email);
     }
 
     if (password) {
@@ -158,7 +159,7 @@ export const supabaseService = {
   // Templates
   async getTemplates(): Promise<ChecklistTemplate[]> {
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado.');
+      return localService.getTemplates();
     }
     try {
       const { data, error } = await supabase
@@ -188,7 +189,7 @@ export const supabaseService = {
 
   async saveTemplate(template: ChecklistTemplate): Promise<void> {
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado.');
+      return localService.saveTemplate(template);
     }
     try {
       const dbTemplate = {
@@ -217,7 +218,7 @@ export const supabaseService = {
   },
 
   async deleteTemplate(id: string): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.deleteTemplate(id);
     try {
       const { error } = await supabase
         .from('templates')
@@ -237,7 +238,7 @@ export const supabaseService = {
 
   // Responses
   async getResponses(): Promise<ChecklistResponse[]> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.getResponses();
     try {
       const { data, error } = await supabase
         .from('responses')
@@ -270,7 +271,7 @@ export const supabaseService = {
   },
 
   async getResponseById(id: string): Promise<ChecklistResponse | null> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.getResponseById(id);
     try {
       const { data: r, error } = await supabase
         .from('responses')
@@ -304,7 +305,7 @@ export const supabaseService = {
   },
 
   async saveResponse(response: ChecklistResponse): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.saveResponse(response);
     try {
       const dbResponse = {
         id: response.id,
@@ -336,7 +337,7 @@ export const supabaseService = {
   },
 
   async deleteResponse(id: string): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.deleteResponse(id);
     try {
       const { error } = await supabase
         .from('responses')
@@ -356,7 +357,7 @@ export const supabaseService = {
 
   // Users Management
   async getUsers(): Promise<User[]> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.getUsers();
     try {
       const { data, error } = await supabase
         .from('users')
@@ -382,7 +383,7 @@ export const supabaseService = {
   },
 
   async saveUser(user: User): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.saveUser(user);
     try {
       const dbUser = {
         id: user.id,
@@ -409,7 +410,7 @@ export const supabaseService = {
   },
 
   async deleteUser(id: string): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado.');
+    if (!canUseSupabase()) return localService.deleteUser(id);
     try {
       const { error } = await supabase
         .from('users')
