@@ -20,6 +20,35 @@ const checkSupabaseError = (error: any) => {
 
 const canUseSupabase = () => canUseSupabaseRuntime();
 
+// Helper for local storage fallback
+const LOCAL_STORAGE_KEYS = {
+  TEMPLATES: 'checktoplog_templates_local',
+  RESPONSES: 'checktoplog_responses_local',
+  USERS: 'checktoplog_users_local'
+};
+
+const getLocal = <T>(key: string): T[] => {
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : [];
+};
+
+const saveLocal = <T extends { id: string }>(key: string, item: T) => {
+  const items = getLocal<T>(key);
+  const index = items.findIndex(i => i.id === item.id);
+  if (index >= 0) {
+    items[index] = item;
+  } else {
+    items.push(item);
+  }
+  localStorage.setItem(key, JSON.stringify(items));
+};
+
+const deleteLocal = (key: string, id: string) => {
+  const items = getLocal<{ id: string }>(key);
+  const filtered = items.filter(i => i.id !== id);
+  localStorage.setItem(key, JSON.stringify(filtered));
+};
+
 export const supabaseService = {
   // Auth
   async syncUser(sessionUser: any): Promise<User | null> {
@@ -173,7 +202,8 @@ export const supabaseService = {
   // Templates
   async getTemplates(): Promise<ChecklistTemplate[]> {
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado ou com erro de conexão.');
+      console.warn('Supabase não configurado. Usando armazenamento local para templates.');
+      return getLocal<ChecklistTemplate>(LOCAL_STORAGE_KEYS.TEMPLATES);
     }
     try {
       const { data, error } = await supabase
@@ -203,7 +233,9 @@ export const supabaseService = {
 
   async saveTemplate(template: ChecklistTemplate): Promise<void> {
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado ou com erro de conexão.');
+      console.warn('Supabase não configurado. Salvando template localmente.');
+      saveLocal(LOCAL_STORAGE_KEYS.TEMPLATES, template);
+      return;
     }
     try {
       const dbTemplate = {
@@ -232,7 +264,10 @@ export const supabaseService = {
   },
 
   async deleteTemplate(id: string): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      deleteLocal(LOCAL_STORAGE_KEYS.TEMPLATES, id);
+      return;
+    }
     try {
       const { error } = await supabase
         .from('templates')
@@ -252,7 +287,9 @@ export const supabaseService = {
 
   // Responses
   async getResponses(): Promise<ChecklistResponse[]> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      return getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
+    }
     try {
       const { data, error } = await supabase
         .from('responses')
@@ -285,7 +322,10 @@ export const supabaseService = {
   },
 
   async getResponseById(id: string): Promise<ChecklistResponse | null> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      const items = getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
+      return items.find(i => i.id === id) || null;
+    }
     try {
       const { data: r, error } = await supabase
         .from('responses')
@@ -319,7 +359,10 @@ export const supabaseService = {
   },
 
   async saveResponse(response: ChecklistResponse): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      saveLocal(LOCAL_STORAGE_KEYS.RESPONSES, response);
+      return;
+    }
     try {
       const dbResponse = {
         id: response.id,
@@ -351,7 +394,10 @@ export const supabaseService = {
   },
 
   async deleteResponse(id: string): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      deleteLocal(LOCAL_STORAGE_KEYS.RESPONSES, id);
+      return;
+    }
     try {
       const { error } = await supabase
         .from('responses')
@@ -371,7 +417,9 @@ export const supabaseService = {
 
   // Users Management
   async getUsers(): Promise<User[]> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      return getLocal<User>(LOCAL_STORAGE_KEYS.USERS);
+    }
     try {
       const { data, error } = await supabase
         .from('users')
@@ -397,7 +445,10 @@ export const supabaseService = {
   },
 
   async saveUser(user: User): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      saveLocal(LOCAL_STORAGE_KEYS.USERS, user);
+      return;
+    }
     try {
       const dbUser = {
         id: user.id,
@@ -424,7 +475,10 @@ export const supabaseService = {
   },
 
   async deleteUser(id: string): Promise<void> {
-    if (!canUseSupabase()) throw new Error('Supabase não configurado ou com erro de conexão.');
+    if (!canUseSupabase()) {
+      deleteLocal(LOCAL_STORAGE_KEYS.USERS, id);
+      return;
+    }
     try {
       const { error } = await supabase
         .from('users')
