@@ -1,67 +1,479 @@
-import { useEffect, useState } from "react"
-import { supabase } from "./lib/supabase"
 
-export default function App() {
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
+import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
+import { supabaseService } from './services/supabaseService.ts';
+import { supabase, isSupabaseConfigured, canUseSupabaseRuntime } from './supabaseClient.ts';
+import Layout from './components/Layout.tsx';
+import LoginPage from './pages/LoginPage.tsx';
+import TemplateEditor from './pages/TemplateEditor.tsx';
+import ChecklistRunner from './pages/ChecklistRunner.tsx';
+import ChecklistSummary from './pages/ChecklistSummary.tsx';
+import UserManagement from './pages/UserManagement.tsx';
+import Reports from './pages/Reports.tsx';
+import BatchDownload from './pages/BatchDownload.tsx';
+import Dashboard from './pages/Dashboard.tsx';
+
+interface ErrorBoundaryProps {
+  children?: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Erro crítico na aplicação:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-gray-50 p-6">
+          <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-red-100 max-w-md w-full text-center">
+            <div className="text-4xl mb-4">😵</div>
+            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight mb-2">Ops! Algo deu errado.</h2>
+            <p className="text-gray-500 text-sm mb-6">Ocorreu um erro inesperado ao carregar a aplicação.</p>
+            <div className="bg-red-50 p-4 rounded-xl text-left mb-6 overflow-auto max-h-40">
+              <p className="text-[10px] font-mono text-red-600 break-words">{this.state.error?.message}</p>
+            </div>
+            <div className="space-y-3">
+              <button 
+                onClick={() => { localStorage.clear(); window.location.reload(); }}
+                className="w-full bg-orange-600 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg"
+              >
+                Limpar Cache e Recarregar
+              </button>
+              <button 
+                onClick={() => window.location.reload()}
+                className="w-full bg-white text-gray-500 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all border border-gray-100"
+              >
+                Tentar Novamente
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (this as any).props.children;
+  }
+}
+
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
+  const [responses, setResponses] = useState<ChecklistResponse[]>([]);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterTemplateId, setFilterTemplateId] = useState('');
+
+  const userRef = useRef<User | null>(null);
+
+  const [activeTemplate, setActiveTemplate] = useState<ChecklistTemplate | null>(null);
+  const [editTemplateId, setEditTemplateId] = useState<string | undefined>();
+  const [activeChecklistId, setActiveChecklistId] = useState<string | undefined>();
+
+  const fetchResponses = async () => {
+    try {
+      const resps = await supabaseService.getResponses();
+      setResponses(resps);
+    } catch (err) {
+      console.error("Erro ao atualizar respostas:", err);
+    }
+  };
 
   useEffect(() => {
-    async function loadSession() {
-      const { data } = await supabase.auth.getSession()
-      setUser(data.session?.user ?? null)
-      setLoading(false)
+    if (currentPage === 'checklists') {
+      fetchResponses();
     }
+  }, [currentPage]);
 
-    loadSession()
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // 1. Check Google Auth Session (Server-side)
+        const googleUser = await supabaseService.getCurrentUser();
+        if (googleUser) {
+          setUser(googleUser);
+          userRef.current = googleUser;
+          setLoading(false);
+          return;
+        }
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null)
+        // 2. Fallback to Supabase Session
+        if (canUseSupabaseRuntime()) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const syncedUser = await supabaseService.syncUser(session.user);
+            setUser(syncedUser);
+            userRef.current = syncedUser;
+          } else {
+            // Se não há sessão no Supabase, não permitimos login automático por localStorage
+            // a menos que seja uma sessão válida que possamos sincronizar.
+            setUser(null);
+            userRef.current = null;
+          }
+        } else {
+          // Se o Supabase não está disponível, não permitimos acesso
+          setUser(null);
+          userRef.current = null;
+          localStorage.removeItem('checklist_user');
+        }
+      } catch (e) {
+        console.error("Init error", e);
+      } finally {
+        setLoading(false);
       }
-    )
+    };
+
+    init();
+
+    // Listen for Google Auth success from popup
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        console.log("OAuth Success received, re-initializing...");
+        setLoading(true);
+        
+        if (event.data.user) {
+          // If user data is provided in the message, use it immediately
+          const googleUser: User = {
+            id: event.data.user.sub || event.data.user.id || crypto.randomUUID(),
+            email: event.data.user.email,
+            name: event.data.user.name || event.data.user.email.split('@')[0],
+            role: 'ADMIN',
+            allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
+          };
+          setUser(googleUser);
+          userRef.current = googleUser;
+          localStorage.setItem('checklist_user', JSON.stringify(googleUser));
+          setCurrentPage('dashboard');
+          setLoading(false);
+        } else {
+          // Wait a bit for server session to propagate
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await init();
+          setCurrentPage('dashboard');
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    // Listen for auth changes
+    let subscription: any = null;
+    if (canUseSupabaseRuntime()) {
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log("Evento Auth:", event, "Sessão:", !!session);
+
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+          const syncedUser = await supabaseService.syncUser(session.user);
+          if (syncedUser) {
+            setUser(syncedUser);
+            userRef.current = syncedUser;
+          }
+        } else if (event === 'SIGNED_OUT') {
+          // Check if we have a Google session before clearing everything
+          const googleUser = await supabaseService.getCurrentUser();
+          if (!googleUser) {
+            console.log("No Google session found, clearing user state.");
+            setUser(null);
+            userRef.current = null;
+            localStorage.removeItem('checklist_user');
+          } else {
+            console.log("Google session still active, keeping user.");
+            setUser(googleUser);
+            userRef.current = googleUser;
+          }
+        }
+      });
+      subscription = data.subscription;
+    }
 
     return () => {
-      listener.subscription.unsubscribe()
+      window.removeEventListener('message', handleMessage);
+      if (subscription) subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    try {
+      const url = await supabaseService.getGoogleAuthUrl();
+      const authWindow = window.open(url, 'google_oauth_popup', 'width=600,height=700');
+      if (!authWindow) {
+        alert("Por favor, permita popups para este site.");
+      }
+    } catch (err) {
+      console.error("Google login error", err);
+      alert("Erro ao entrar com Google");
     }
-  }, [])
+  };
 
-  const loginWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google"
-    })
-  }
+  const loadData = useCallback(async () => {
+    if (!userRef.current) return;
+    try {
+      const [t, r] = await Promise.all([
+        supabaseService.getTemplates(),
+        supabaseService.getResponses()
+      ]);
+      setTemplates(t || []);
+      setResponses(r || []);
+    } catch (err) {
+      console.error("Erro ao carregar dados:", err);
+    }
+  }, []);
 
-  const logout = async () => {
-    await supabase.auth.signOut()
-  }
+  useEffect(() => {
+    if (user) loadData();
+  }, [loadData, currentPage, user]);
 
-  if (loading) {
-    return (
-      <div style={{padding:40,fontSize:20}}>
-        Carregando...
-      </div>
-    )
-  }
+  const handleLogin = async (email: string, password?: string) => {
+    try {
+      console.log("Iniciando login para:", email);
+      const u = await supabaseService.login(email, password);
+      console.log("Login bem-sucedido:", u);
+      if (u) {
+        setUser(u);
+        userRef.current = u;
+        setCurrentPage('dashboard');
+      } else {
+        throw new Error("Não foi possível obter os dados do usuário após o login.");
+      }
+    } catch (err: any) {
+      console.error("Erro no handleLogin:", err);
+      throw err; // Re-throw para o LoginPage lidar com o erro no estado local
+    }
+  };
 
-  if (!user) {
-    return (
-      <div style={{padding:40}}>
-        <h2>Login</h2>
-        <button onClick={loginWithGoogle}>
-          Entrar com Google
-        </button>
-      </div>
-    )
-  }
+  const handleLogout = async () => {
+    await supabaseService.logout();
+    setUser(null);
+    userRef.current = null;
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    if (window.confirm('Deseja realmente excluir este modelo? Todos os dados vinculados a ele podem ser afetados.')) {
+      try {
+        await supabaseService.deleteTemplate(id);
+        await loadData();
+      } catch (err) {
+        alert('Erro ao excluir modelo.');
+      }
+    }
+  };
+
+  const handleDeleteResponse = async (id: string) => {
+    if (window.confirm('Deseja realmente excluir este registro do histórico? Esta ação é irreversível.')) {
+      try {
+        await supabaseService.deleteResponse(id);
+        await loadData();
+      } catch (err) {
+        alert('Erro ao excluir registro.');
+      }
+    }
+  };
+
+  const handleDuplicateTemplate = async (template: ChecklistTemplate) => {
+    try {
+      const newTemplate: ChecklistTemplate = {
+        ...template,
+        id: `tmpl_${Math.random().toString(36).substr(2, 9)}`,
+        title: `${template.title} (Cópia)`
+      };
+      await supabaseService.saveTemplate(newTemplate);
+      await loadData();
+    } catch (err) {
+      alert('Erro ao duplicar modelo.');
+    }
+  };
+
+  const renderContent = () => {
+    try {
+      switch (currentPage) {
+        case 'dashboard':
+           return <Dashboard onNavigate={setCurrentPage} onNewTemplate={() => setEditTemplateId("")} />;
+        case 'reports':
+           return <Reports />;
+        case 'batch_download':
+           return <BatchDownload />;
+        case 'checklists':
+          const filteredResponses = responses.filter(r => {
+            const t = templates.find(temp => temp.id === r.templateId);
+            const term = searchTerm.toLowerCase();
+            const idMatch = r.customId?.toLowerCase().includes(term) || false;
+            const titleMatch = t?.title?.toLowerCase().includes(term) || false;
+            const termMatches = !term || idMatch || titleMatch;
+            let dateMatches = true;
+            if (filterDate) {
+              const resDate = new Date(r.updatedAt).toISOString().split('T')[0];
+              dateMatches = resDate === filterDate;
+            }
+            const templateMatches = !filterTemplateId || r.templateId === filterTemplateId;
+            return termMatches && dateMatches && templateMatches;
+          });
+
+          return (
+            <div className="space-y-8 animate-fadeIn pb-24">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                 <h2 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Histórico</h2>
+                 <button onClick={() => setCurrentPage('templates')} className="md:hidden bg-orange-600 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] shadow-lg">+ Novo</button>
+              </div>
+                 
+              <div className="flex flex-col gap-4">
+                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3">
+                     <div className="relative flex-1">
+                       <input 
+                        type="text" 
+                        placeholder="🔍 Buscar por ID ou nome..." 
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 pl-10 text-xs font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                       />
+                       <span className="absolute left-3 top-3 text-gray-400">🔎</span>
+                     </div>
+                     <div className="relative w-full md:w-56">
+                        <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-3 group focus-within:ring-2 focus-within:ring-orange-500 transition-all">
+                           <span className="text-gray-400 text-xs mr-2">📅</span>
+                           <input 
+                             type="date"
+                             className="bg-transparent border-none py-3 text-xs font-bold focus:ring-0 outline-none text-gray-600 flex-1 h-full"
+                             value={filterDate}
+                             onChange={(e) => setFilterDate(e.target.value)}
+                           />
+                           {filterDate && <button onClick={() => setFilterDate('')} className="ml-2 text-gray-400 hover:text-red-500 font-bold p-1">✕</button>}
+                        </div>
+                     </div>
+                     {(searchTerm || filterDate || filterTemplateId) && (
+                         <button onClick={() => { setSearchTerm(''); setFilterDate(''); setFilterTemplateId(''); }} className="px-4 py-3 bg-red-50 text-red-500 rounded-xl font-black text-[10px] uppercase hover:bg-red-100 transition-colors whitespace-nowrap">Limpar</button>
+                     )}
+                 </div>
+                 <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                    <button onClick={() => setFilterTemplateId('')} className={`whitespace-nowrap px-4 py-2 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all shadow-sm ${filterTemplateId === '' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-400 border-gray-200'}`}>📂 Todos</button>
+                    {templates.map(t => (
+                        <button key={t.id} onClick={() => setFilterTemplateId(t.id === filterTemplateId ? '' : t.id)} className={`whitespace-nowrap px-4 py-2 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all shadow-sm ${filterTemplateId === t.id ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200'}`}>{t.title}</button>
+                    ))}
+                 </div>
+              </div>
+
+              {filteredResponses.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-gray-100">
+                      <div className="text-6xl mb-4 grayscale opacity-20">📭</div>
+                      <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest text-center">Nenhum resultado encontrado</p>
+                  </div>
+              ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredResponses.map(r => {
+                  const t = templates.find(temp => temp.id === r.templateId);
+                  const isDraft = r.status === 'DRAFT';
+                  return (
+                    <div key={r.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden hover:shadow-2xl transition-all relative group/card">
+                      <div className="h-40 bg-gray-50 relative overflow-hidden shrink-0">
+                        {t?.image ? <img src={t.image} className="w-full h-full object-cover opacity-80" alt={t.title} /> : <div className="w-full h-full flex items-center justify-center text-gray-200 text-5xl">📦</div>}
+                        <div className="absolute top-6 left-6 flex gap-2">
+                           <span className="text-[10px] font-black bg-white text-orange-600 px-3 py-1.5 rounded-xl uppercase shadow-xl border border-orange-50">#{r.customId || 'S/ID'}</span>
+                        </div>
+                        <div className="absolute top-6 right-6 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); handleDeleteResponse(r.id); }}
+                             className="bg-white/90 backdrop-blur p-2 rounded-xl shadow-lg text-red-500 hover:bg-red-500 hover:text-white transition-all active:scale-90"
+                             title="Excluir Registro"
+                           >
+                             <span className="text-xs">🗑️</span>
+                           </button>
+                        </div>
+                      </div>
+                      <div className="p-8 flex flex-col justify-between flex-1">
+                        <div>
+                          <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${!isDraft ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{!isDraft ? 'Concluído' : 'Rascunho'}</span>
+                          <h3 className="text-base font-black text-gray-800 mb-1 truncate uppercase tracking-tighter mt-2">{t?.title || 'Checklist'}</h3>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Atualizado: {new Date(r.updatedAt).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <button onClick={() => { if(t) { setActiveTemplate(t); setActiveChecklistId(r.id); setCurrentPage(isDraft ? 'run_checklist' : 'view_checklist'); } }} className={`mt-6 w-full py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl transition-all tracking-widest ${isDraft ? 'bg-orange-600 text-white' : 'bg-gray-900 text-white'}`}>{isDraft ? 'Retomar' : 'Ver Detalhes'}</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              )}
+            </div>
+          );
+        case 'run_checklist': return activeTemplate && <ChecklistRunner template={activeTemplate} editId={activeChecklistId} onBack={() => { fetchResponses(); setCurrentPage('checklists'); }} />;
+        case 'view_checklist': return activeTemplate && activeChecklistId && <ChecklistSummary template={activeTemplate} responseId={activeChecklistId} onBack={() => { fetchResponses(); setCurrentPage('checklists'); }} />;
+        case 'users': return <UserManagement />;
+        case 'templates':
+        default:
+          if (editTemplateId !== undefined) return <TemplateEditor editId={editTemplateId} onBack={() => { setEditTemplateId(undefined); setCurrentPage('templates'); }} />;
+          return (
+            <div className="space-y-8 animate-fadeIn pb-24">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Checklists</h2>
+                <button onClick={() => setEditTemplateId("")} className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg tracking-widest hover:bg-orange-700 transition-all">+ Novo</button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {templates.map(t => (
+                  <div key={t.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-2xl transition-all group border-b-8 border-orange-500 overflow-hidden flex flex-col relative">
+                    <div className="h-48 bg-gray-50 relative overflow-hidden shrink-0">
+                      {t.image ? <img src={t.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={t.title} /> : <div className="w-full h-full flex items-center justify-center text-gray-300 text-5xl">📋</div>}
+                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button 
+                           onClick={(e) => { e.stopPropagation(); handleDuplicateTemplate(t); }}
+                           title="Duplicar Modelo"
+                           className="bg-white/90 backdrop-blur p-2 rounded-lg shadow-lg text-orange-600 hover:bg-orange-600 hover:text-white transition-all"
+                         >
+                           <span className="text-xs">📄📄</span>
+                         </button>
+                         <button 
+                           onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(t.id); }}
+                           title="Excluir Modelo"
+                           className="bg-white/90 backdrop-blur p-2 rounded-lg shadow-lg text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                         >
+                           <span className="text-xs">🗑️</span>
+                         </button>
+                      </div>
+                    </div>
+                    <div className="p-8 flex-1 flex flex-col justify-between">
+                      <h3 className="text-xl font-black text-gray-900 mb-6 uppercase tracking-tighter line-clamp-2">{t.title}</h3>
+                      <div className="flex gap-3">
+                        <button onClick={() => { setActiveTemplate(t); setActiveChecklistId(undefined); setCurrentPage('run_checklist'); }} className="flex-1 bg-orange-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl tracking-widest hover:bg-orange-700">Iniciar</button>
+                        <button onClick={() => setEditTemplateId(t.id)} className="bg-gray-50 text-gray-400 px-5 py-4 rounded-2xl font-black text-[10px] uppercase hover:bg-gray-100 transition-all">Editar</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+      }
+    } catch (error) {
+      console.error("Erro na renderização:", error);
+      return <div className="p-10 text-center text-red-500">Erro ao carregar componente.</div>;
+    }
+  };
+
+  if (loading) return <div className="h-screen w-full flex items-center justify-center bg-gray-50"><div className="w-16 h-16 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div></div>;
 
   return (
-    <div style={{padding:40}}>
-      <h2>Logado</h2>
-      <p>{user.email}</p>
+    <ErrorBoundary>
+      {user ? (
+        <Layout user={user} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
+          {renderContent()}
+        </Layout>
+      ) : (
+        <LoginPage onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} />
+      )}
+    </ErrorBoundary>
+  );
+};
 
-      <button onClick={logout}>
-        Sair
-      </button>
-    </div>
-  )
-}
+export default App;
