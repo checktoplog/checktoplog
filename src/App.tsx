@@ -3,11 +3,8 @@ import React, { useState, useEffect, useCallback, useRef, Component } from 'reac
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
 import { supabaseService } from './services/supabaseService.ts';
 import { supabase } from './supabaseClient.ts';
-
 const canUseSupabaseRuntime = () => true;
-
 const isSupabaseConfigured = true;
-
 const isSupabaseBroken = () => false;
 import Layout from './components/Layout.tsx';
 import TemplateEditor from './pages/TemplateEditor.tsx';
