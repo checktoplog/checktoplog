@@ -81,10 +81,24 @@ const GUEST_USER: User = {
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isBroken, setIsBroken] = useState(isSupabaseBroken());
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [inputCode, setInputCode] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [user, setUser] = useState<User | null>(GUEST_USER);
+  const [loading, setLoading] = useState(false);
+  const [isBroken, setIsBroken] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
+
+  const handleAccessSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputCode === 'Dwss14112001') {
+      setIsAuthorized(true);
+      setAuthError('');
+    } else {
+      setAuthError('Código inválido');
+    }
+  };
+
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
   const [responses, setResponses] = useState<ChecklistResponse[]>([]);
   
@@ -114,55 +128,9 @@ const App: React.FC = () => {
   }, [currentPage]);
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        // We no longer check for sessions, we use the default user
-        userRef.current = GUEST_USER;
-        
-        // However, we still want to sync if there is a real session in the background
-        if (canUseSupabaseRuntime()) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const syncedUser = await supabaseService.syncUser(session.user);
-            if (syncedUser) {
-              setUser(syncedUser);
-              userRef.current = syncedUser;
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Init error", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    init();
-
-    const handleBroken = () => setIsBroken(true);
-    window.addEventListener('supabase-broken', handleBroken);
-
-    // Listen for auth changes
-    let subscription: any = null;
-    if (canUseSupabaseRuntime()) {
-      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log("Evento Auth:", event, "Sessão:", !!session);
-
-        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-          const syncedUser = await supabaseService.syncUser(session.user);
-          if (syncedUser) {
-            setUser(syncedUser);
-            userRef.current = syncedUser;
-          }
-        }
-      });
-      subscription = data.subscription;
-    }
-
-    return () => {
-      window.removeEventListener('supabase-broken', handleBroken);
-      if (subscription) subscription.unsubscribe();
-    };
+    // Temporary: bypass supabase init
+    userRef.current = GUEST_USER;
+    setLoading(false);
   }, []);
 
   const loadData = useCallback(async () => {
@@ -185,7 +153,8 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     if (window.confirm('Deseja realmente sair?')) {
-      await supabaseService.logout();
+      setIsAuthorized(false);
+      setInputCode('');
     }
   };
 
@@ -390,54 +359,47 @@ const App: React.FC = () => {
 
   if (loading) return <div className="h-screen w-full flex items-center justify-center bg-gray-50"><div className="w-16 h-16 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div></div>;
 
-  if (!isSupabaseConfigured || isBroken) {
+  if (!isAuthorized) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-50 p-6">
-        <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-orange-100 max-w-md w-full text-center">
-          <div className="text-6xl mb-6">{isBroken ? '❌' : '⚙️'}</div>
-          <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter mb-4">
-            {isBroken ? 'Erro de Conexão' : 'Configuração Necessária'}
-          </h2>
-          <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-            {isBroken 
-              ? 'As chaves do Supabase fornecidas parecem estar incorretas ou expiradas. Verifique suas credenciais.'
-              : 'Este aplicativo é 100% dependente do Supabase. Para funcionar, você precisa configurar as variáveis de ambiente:'}
-          </p>
-          <div className="bg-orange-50 p-6 rounded-2xl text-left mb-8 space-y-3 border border-orange-100">
-            <div className="flex items-center space-x-2">
-              <span className="text-orange-600 font-black text-[10px]">●</span>
-              <code className="text-[10px] font-mono font-bold text-orange-800">VITE_SUPABASE_URL</code>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-gray-100 max-w-md w-full text-center">
+          <div className="text-5xl mb-6">🔐</div>
+          <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tighter mb-2">Acesso ao CheckTopLog</h1>
+          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-8">Digite o código para entrar</p>
+          
+          <form onSubmit={handleAccessSubmit} className="space-y-4">
+            <div className="relative">
+              <input 
+                type="password"
+                value={inputCode}
+                onChange={(e) => setInputCode(e.target.value)}
+                placeholder="Código de Acesso"
+                className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all text-center tracking-[0.5em]"
+                autoFocus
+              />
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-orange-600 font-black text-[10px]">●</span>
-              <code className="text-[10px] font-mono font-bold text-orange-800">VITE_SUPABASE_ANON_KEY</code>
-            </div>
-          </div>
-          <button 
-            onClick={() => {
-              if (isBroken) {
-                // If it's broken, maybe they updated the env vars, so we clear and reload
-                localStorage.clear();
-              }
-              window.location.reload();
-            }}
-            className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-200 active:scale-95"
-          >
-            {isBroken ? 'Tentar Novamente' : 'Verificar Novamente'}
-          </button>
-          <p className="mt-6 text-[9px] text-gray-400 uppercase font-black tracking-widest">Acesse o painel do Supabase para obter as chaves</p>
+            
+            {authError && (
+              <p className="text-red-500 text-[10px] font-black uppercase tracking-widest animate-shake">{authError}</p>
+            )}
+
+            <button 
+              type="submit"
+              className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-200 active:scale-95"
+            >
+              Entrar
+            </button>
+          </form>
+          
+          <p className="mt-8 text-[9px] text-gray-300 uppercase font-black tracking-widest">© 2026 CheckTopLog • Acesso Temporário</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    return <LoginPage onLoginSuccess={() => {}} />;
-  }
-
   return (
     <ErrorBoundary>
-      <Layout user={user} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
+      <Layout user={user || GUEST_USER} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
         {renderContent()}
       </Layout>
     </ErrorBoundary>
