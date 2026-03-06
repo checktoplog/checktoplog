@@ -232,10 +232,11 @@ export const supabaseService = {
   },
 
   async saveTemplate(template: ChecklistTemplate): Promise<void> {
+    // Always try to save locally as a backup
+    saveLocal(LOCAL_STORAGE_KEYS.TEMPLATES, template);
+
     if (!canUseSupabase()) {
-      console.warn('Supabase não configurado. Salvando template localmente.');
-      saveLocal(LOCAL_STORAGE_KEYS.TEMPLATES, template);
-      return;
+      throw new Error('Supabase não configurado. O modelo foi salvo apenas localmente no seu navegador.');
     }
     try {
       const dbTemplate = {
@@ -359,9 +360,11 @@ export const supabaseService = {
   },
 
   async saveResponse(response: ChecklistResponse): Promise<void> {
+    // Always try to save locally as a backup
+    saveLocal(LOCAL_STORAGE_KEYS.RESPONSES, response);
+
     if (!canUseSupabase()) {
-      saveLocal(LOCAL_STORAGE_KEYS.RESPONSES, response);
-      return;
+      throw new Error('Supabase não configurado. O checklist foi salvo apenas localmente no seu navegador.');
     }
     try {
       const dbResponse = {

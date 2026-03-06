@@ -2,10 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
 import { supabaseService } from './services/supabaseService.ts';
-import { supabase } from './supabaseClient.ts';
-const canUseSupabaseRuntime = () => true;
-const isSupabaseConfigured = true;
-const isSupabaseBroken = () => false;
+import { supabase, canUseSupabaseRuntime, isSupabaseConfigured, isSupabaseBroken } from './supabaseClient.ts';
 import Layout from './components/Layout.tsx';
 import TemplateEditor from './pages/TemplateEditor.tsx';
 import ChecklistRunner from './pages/ChecklistRunner.tsx';
@@ -73,7 +70,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 const GUEST_USER: User = {
-  id: 'admin-user',
+  id: '00000000-0000-0000-0000-000000000000',
   name: 'Administrador',
   email: 'admin@checktoplog.com',
   role: 'ADMIN',
