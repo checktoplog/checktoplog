@@ -394,6 +394,23 @@ const App: React.FC = () => {
           </div>
           
           <form onSubmit={handleAccessSubmit} className="space-y-4">
+            {localStorage.getItem('checklist_user') && (
+              <div className="mb-4 p-3 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
+                <div className="text-left">
+                  <p className="text-[8px] font-black text-orange-800 uppercase">Sessão Ativa:</p>
+                  <p className="text-[10px] font-bold text-orange-600 truncate max-w-[150px]">
+                    {JSON.parse(localStorage.getItem('checklist_user')!).name}
+                  </p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => { localStorage.removeItem('checklist_user'); window.location.reload(); }}
+                  className="text-[8px] font-black text-white bg-orange-600 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-orange-700 transition-all"
+                >
+                  Limpar
+                </button>
+              </div>
+            )}
             <div className="relative">
               <input 
                 type="password"

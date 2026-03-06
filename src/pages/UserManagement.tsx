@@ -31,13 +31,21 @@ const UserManagement: React.FC = () => {
     loadUsers();
   }, []);
 
+  const [tableError, setTableError] = useState<string | null>(null);
+
   const loadUsers = async () => {
     setLoading(true);
+    setTableError(null);
     try {
       const data = await supabaseService.getUsers();
       setUsers(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading users:", error);
+      if (error.code === '42P01') {
+        setTableError('A tabela "users" não foi encontrada no banco de dados.');
+      } else {
+        setTableError(error.message || 'Erro ao carregar usuários.');
+      }
     } finally {
       setLoading(false);
     }
@@ -104,6 +112,20 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+
+  const testConnection = async () => {
+    setTestStatus('testing');
+    try {
+      await supabaseService.getUsers();
+      setTestStatus('success');
+      setTimeout(() => setTestStatus('idle'), 3000);
+    } catch (e) {
+      setTestStatus('error');
+      setTimeout(() => setTestStatus('idle'), 5000);
+    }
+  };
+
   if (loading && users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-orange-600">
@@ -128,15 +150,26 @@ const UserManagement: React.FC = () => {
       )}
 
       {isSupabaseConfigured && (
-        <div className="bg-blue-50 border-2 border-blue-200 p-6 rounded-[2rem] shadow-sm">
+        <div className={`p-6 rounded-[2rem] shadow-sm border-2 ${tableError ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
           <div className="flex items-center space-x-4 mb-4">
-            <span className="text-3xl">🛠️</span>
-            <h3 className="text-blue-800 font-black uppercase tracking-tighter">Configuração do Banco de Dados</h3>
+            <span className="text-3xl">{tableError ? '❌' : '🛠️'}</span>
+            <h3 className={`font-black uppercase tracking-tighter ${tableError ? 'text-red-800' : 'text-blue-800'}`}>
+              {tableError ? 'Tabela Não Encontrada' : 'Configuração do Banco de Dados'}
+            </h3>
           </div>
-          <p className="text-blue-700 text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-4">
-            Certifique-se de que a tabela "users" existe no seu Supabase. Execute o comando abaixo no SQL Editor do Supabase:
+          
+          {tableError && (
+            <div className="mb-4 p-4 bg-white/50 rounded-xl border border-red-100">
+              <p className="text-red-700 text-[10px] font-black uppercase tracking-widest">
+                Ocorreu um erro ao acessar a tabela de usuários. Isso geralmente significa que a tabela ainda não foi criada no Supabase.
+              </p>
+            </div>
+          )}
+
+          <p className={`${tableError ? 'text-red-700' : 'text-blue-700'} text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-4`}>
+            {tableError ? 'Para corrigir, execute o comando abaixo no SQL Editor do seu Supabase:' : 'Certifique-se de que a tabela "users" existe no seu Supabase. Execute o comando abaixo no SQL Editor do Supabase:'}
           </p>
-          <pre className="bg-white/50 p-4 rounded-xl text-[9px] font-mono text-blue-900 overflow-x-auto border border-blue-100">
+          <pre className={`p-4 rounded-xl text-[9px] font-mono overflow-x-auto border ${tableError ? 'bg-red-100/50 text-red-900 border-red-200' : 'bg-white/50 text-blue-900 border-blue-100'}`}>
 {`create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -151,6 +184,21 @@ const UserManagement: React.FC = () => {
 alter table users enable row level security;
 create policy "Acesso Público" on users for all using (true) with check (true);`}
           </pre>
+          
+          <div className="flex gap-2 mt-4">
+            <button 
+              onClick={loadUsers}
+              className="bg-red-600 text-white px-6 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-700 transition-all"
+            >
+              Tentar Novamente
+            </button>
+            <button 
+              onClick={testConnection}
+              className="bg-white border border-red-200 text-red-600 px-6 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-50 transition-all"
+            >
+              {testStatus === 'testing' ? 'Testando...' : 'Testar Conexão'}
+            </button>
+          </div>
         </div>
       )}
 

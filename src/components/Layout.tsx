@@ -87,20 +87,21 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
               <span>📱 Acesso Mobile</span>
             </button>
 
-            <div className="flex items-center space-x-4 p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center space-x-3 p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
               <div className="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center font-black text-sm shadow-inner shrink-0">
                 {user.name.charAt(0)}
               </div>
               <div className="flex-1 overflow-hidden">
-                <p className="text-xs font-black truncate text-gray-900 leading-tight">{user.name}</p>
-                <p className="text-[9px] text-orange-600 uppercase font-black tracking-widest mt-0.5">{user.role}</p>
+                <p className="text-[10px] font-black truncate text-gray-900 leading-tight">{user.name}</p>
+                <p className="text-[8px] text-orange-600 uppercase font-black tracking-widest mt-0.5">{user.role}</p>
               </div>
               <button 
                 onClick={onLogout}
-                className="w-8 h-8 flex items-center justify-center bg-gray-50 text-gray-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
+                className="flex flex-col items-center justify-center bg-gray-50 text-gray-400 p-2 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors group shrink-0"
                 title="Sair"
               >
-                <span className="text-xs">🚪</span>
+                <span className="text-sm">🚪</span>
+                <span className="text-[7px] font-black uppercase tracking-widest mt-0.5">Sair</span>
               </button>
             </div>
           </div>
