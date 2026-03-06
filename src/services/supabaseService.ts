@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured, canUseSupabaseRuntime, markSupabaseAsBroken } from '../supabaseClient';
+import { supabase, isSupabaseConfigured, canUseSupabaseRuntime, markSupabaseAsBroken, isSupabaseBroken } from '../supabaseClient';
 import { User, ChecklistTemplate, ChecklistResponse } from '../types';
 
 const checkSupabaseError = (error: any) => {
@@ -71,38 +71,40 @@ export const supabaseService = {
       return masterUser;
     }
 
-    if (!canUseSupabase()) {
-      console.warn('Supabase offline, buscando código localmente...');
+    if (!isSupabaseConfigured) {
+      console.warn('Supabase não configurado. Buscando código localmente...');
       const localUsers = getLocal<User>(LOCAL_STORAGE_KEYS.USERS);
       const user = localUsers.find(u => u.accessCode === cleanCode);
       if (user) {
         localStorage.setItem('checklist_user', JSON.stringify(user));
         return user;
       }
-      throw new Error('Código inválido ou sistema offline. Verifique sua conexão.');
+      throw new Error('Sistema de sincronização (Supabase) não configurado. Defina as chaves VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+    }
+
+    if (isSupabaseBroken()) {
+      throw new Error('A conexão com o banco de dados está instável. Tente novamente em instantes.');
     }
 
     try {
-      // Use select instead of single() to handle multiple results or no results gracefully
-      const { data, error } = await supabase
+      const { data, error, status } = await supabase
         .from('users')
         .select('*')
         .eq('access_code', cleanCode);
 
       if (error) {
         console.error('Erro na query do Supabase:', error);
-        if (checkSupabaseError(error)) throw error;
-        throw new Error('Erro ao verificar código no banco de dados.');
+        if (error.code === 'PGRST116') throw new Error('Tabela de usuários não encontrada no banco de dados.');
+        if (error.code === '42P01') throw new Error('A tabela "users" não existe no seu Supabase. Crie-a no SQL Editor.');
+        throw new Error(`Erro no banco de dados (${error.code}): ${error.message}`);
       }
 
       if (!data || data.length === 0) {
         console.warn('Nenhum usuário encontrado com o código:', cleanCode);
-        throw new Error('Código de acesso não encontrado. Verifique se o código foi criado na aba Equipe.');
+        throw new Error('Código de acesso não encontrado. Verifique se o código foi criado corretamente na aba Equipe e se a sincronização está ativa.');
       }
 
-      // If multiple users have the same code (should be avoided), take the first one
       const userData = data[0];
-
       const mappedUser: User = {
         id: userData.id,
         email: userData.email,
@@ -113,10 +115,9 @@ export const supabaseService = {
       };
 
       localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
-      console.log('Login bem-sucedido para:', mappedUser.name);
       return mappedUser;
     } catch (err: any) {
-      console.error('Erro fatal no loginWithCode:', err);
+      console.error('Erro detalhado no login:', err);
       throw err;
     }
   },
@@ -519,14 +520,21 @@ export const supabaseService = {
   },
 
   async saveUser(user: User): Promise<void> {
-    const userId = user.id && user.id !== '' ? user.id : crypto.randomUUID();
+    const generateId = () => {
+      try {
+        return crypto.randomUUID();
+      } catch (e) {
+        return Math.random().toString(36).substring(2) + Date.now().toString(36);
+      }
+    };
+
+    const userId = user.id && user.id !== '' ? user.id : generateId();
     const cleanUser = { ...user, id: userId };
 
-    // Always try to save locally as a backup
     saveLocal(LOCAL_STORAGE_KEYS.USERS, cleanUser);
 
-    if (!canUseSupabase()) {
-      console.warn('Supabase offline, usuário salvo apenas localmente.');
+    if (!isSupabaseConfigured) {
+      console.warn('Supabase não configurado, usuário salvo apenas localmente.');
       return;
     }
     try {
@@ -540,18 +548,15 @@ export const supabaseService = {
         updated_at: new Date().toISOString()
       };
 
-      console.log('Salvando usuário no Supabase:', dbUser);
-
       const { error } = await supabase
         .from('users')
         .upsert([dbUser]);
 
       if (error) {
         console.error('Erro ao salvar usuário no Supabase:', error);
-        if (checkSupabaseError(error)) throw error;
-        throw error;
+        if (error.code === '42P01') throw new Error('A tabela "users" não existe no seu Supabase. Crie-a no SQL Editor.');
+        throw new Error(`Erro ao salvar no banco (${error.code}): ${error.message}`);
       }
-      console.log('Usuário salvo com sucesso no Supabase');
     } catch (err) {
       console.error('Erro fatal ao salvar usuário:', err);
       throw err;

@@ -380,7 +380,18 @@ const App: React.FC = () => {
         <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-gray-100 max-w-md w-full text-center">
           <div className="text-5xl mb-6">🔐</div>
           <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tighter mb-2">Acesso ao CheckTopLog</h1>
-          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-8">Digite o código para entrar</p>
+          
+          <div className="mb-8 flex flex-col items-center space-y-2">
+            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${isSupabaseConfigured ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+              <span>{isSupabaseConfigured ? 'Sincronização Ativa' : 'Sincronização Inativa'}</span>
+            </div>
+            {!isSupabaseConfigured && (
+              <p className="text-[8px] text-red-400 font-bold uppercase tracking-tight max-w-[200px]">
+                Defina as chaves do Supabase para habilitar o acesso multi-dispositivo.
+              </p>
+            )}
+          </div>
           
           <form onSubmit={handleAccessSubmit} className="space-y-4">
             <div className="relative">

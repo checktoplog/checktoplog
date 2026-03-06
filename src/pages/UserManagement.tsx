@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { supabaseService } from '../services/supabaseService';
+import { isSupabaseConfigured } from '../supabaseClient';
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -114,6 +115,45 @@ const UserManagement: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-20 px-2 md:px-0">
+      {!isSupabaseConfigured && (
+        <div className="bg-red-50 border-2 border-red-200 p-6 rounded-[2rem] shadow-sm">
+          <div className="flex items-center space-x-4 mb-4">
+            <span className="text-3xl">⚠️</span>
+            <h3 className="text-red-800 font-black uppercase tracking-tighter">Sincronização Desativada</h3>
+          </div>
+          <p className="text-red-700 text-[10px] font-bold uppercase tracking-widest leading-relaxed">
+            As chaves do Supabase não foram configuradas. As alterações feitas aqui ficarão salvas apenas neste navegador e não serão sincronizadas com outros dispositivos.
+          </p>
+        </div>
+      )}
+
+      {isSupabaseConfigured && (
+        <div className="bg-blue-50 border-2 border-blue-200 p-6 rounded-[2rem] shadow-sm">
+          <div className="flex items-center space-x-4 mb-4">
+            <span className="text-3xl">🛠️</span>
+            <h3 className="text-blue-800 font-black uppercase tracking-tighter">Configuração do Banco de Dados</h3>
+          </div>
+          <p className="text-blue-700 text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-4">
+            Certifique-se de que a tabela "users" existe no seu Supabase. Execute o comando abaixo no SQL Editor do Supabase:
+          </p>
+          <pre className="bg-white/50 p-4 rounded-xl text-[9px] font-mono text-blue-900 overflow-x-auto border border-blue-100">
+{`create table if not exists users (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text unique not null,
+  role text not null default 'USER',
+  allowed_screens text[] default '{}',
+  access_code text unique,
+  updated_at timestamp with time zone default now()
+);
+
+-- Habilite o acesso público para testes (ou configure RLS)
+alter table users enable row level security;
+create policy "Acesso Público" on users for all using (true) with check (true);`}
+          </pre>
+        </div>
+      )}
+
       <div className="bg-orange-50 border-2 border-orange-200 p-4 md:p-6 rounded-[2rem] flex items-start space-x-4 shadow-sm">
         <div className="text-3xl">ℹ️</div>
         <div>
