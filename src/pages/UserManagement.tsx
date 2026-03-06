@@ -191,6 +191,7 @@ end $$;
 
 -- 3. Habilite o acesso público para testes:
 alter table users enable row level security;
+drop policy if exists "Acesso Público" on users;
 create policy "Acesso Público" on users for all using (true) with check (true);`}
           </pre>
           
