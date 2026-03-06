@@ -13,7 +13,8 @@ const UserManagement: React.FC = () => {
     name: '',
     email: '',
     role: 'USER',
-    allowedScreens: ['checklists', 'batch_download']
+    allowedScreens: ['checklists', 'batch_download'],
+    accessCode: ''
   });
 
   const availableScreens = [
@@ -54,14 +55,21 @@ const UserManagement: React.FC = () => {
         name: formData.name!,
         email: formData.email!,
         role: formData.role as UserRole,
-        allowedScreens: formData.allowedScreens!
+        allowedScreens: formData.allowedScreens!,
+        accessCode: formData.accessCode
       };
 
       await supabaseService.saveUser(user);
       await loadUsers();
       setShowModal(false);
       setEditingUser(null);
-      setFormData({ name: '', email: '', role: 'USER', allowedScreens: ['checklists', 'batch_download'] });
+      setFormData({ 
+        name: '', 
+        email: '', 
+        role: 'USER', 
+        allowedScreens: ['checklists', 'batch_download'],
+        accessCode: ''
+      });
     } catch (error) {
       console.error("Error saving user:", error);
       alert("Erro ao salvar usuário.");
@@ -141,6 +149,7 @@ const UserManagement: React.FC = () => {
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Colaborador</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Código</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Função</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Telas Permitidas</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Ações</th>
@@ -159,6 +168,11 @@ const UserManagement: React.FC = () => {
                         <p className="text-[9px] text-gray-400 font-bold">{u.email}</p>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <code className="text-[10px] font-mono font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                      {u.accessCode || '---'}
+                    </code>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -216,6 +230,13 @@ const UserManagement: React.FC = () => {
               </div>
 
               <div className="pt-3 border-t border-gray-200/50">
+                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Código de Acesso:</p>
+                <code className="text-[10px] font-mono font-bold text-orange-600 bg-white px-2 py-1 rounded border border-orange-100">
+                  {u.accessCode || 'Não definido'}
+                </code>
+              </div>
+
+              <div className="pt-3 border-t border-gray-200/50">
                 <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Acessos:</p>
                 <p className="text-[9px] font-bold text-gray-600 uppercase tracking-tight line-clamp-2">
                   {u.role === 'ADMIN' ? 'Acesso Total ao Sistema' : (u.allowedScreens || []).join(', ')}
@@ -269,6 +290,16 @@ const UserManagement: React.FC = () => {
                     value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
                     placeholder="email@empresa.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Código de Acesso Único</label>
+                  <input
+                    type="text"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 text-sm font-bold text-gray-700 outline-none focus:border-orange-500 transition-colors"
+                    value={formData.accessCode}
+                    onChange={e => setFormData({ ...formData, accessCode: e.target.value })}
+                    placeholder="Ex: Dwss14112001"
                   />
                 </div>
                 <div>

@@ -81,18 +81,26 @@ const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [inputCode, setInputCode] = useState('');
   const [authError, setAuthError] = useState('');
-  const [user, setUser] = useState<User | null>(GUEST_USER);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [isBroken, setIsBroken] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
 
-  const handleAccessSubmit = (e: React.FormEvent) => {
+  const handleAccessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputCode === 'Dwss14112001') {
-      setIsAuthorized(true);
-      setAuthError('');
-    } else {
-      setAuthError('Código inválido');
+    setLoading(true);
+    try {
+      const loggedUser = await supabaseService.loginWithCode(inputCode);
+      if (loggedUser) {
+        setUser(loggedUser);
+        userRef.current = loggedUser;
+        setIsAuthorized(true);
+        setAuthError('');
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Código inválido');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -125,9 +133,16 @@ const App: React.FC = () => {
   }, [currentPage]);
 
   useEffect(() => {
-    // Temporary: bypass supabase init
-    userRef.current = GUEST_USER;
-    setLoading(false);
+    const checkSession = async () => {
+      const storedUser = await supabaseService.getUser();
+      if (storedUser) {
+        setUser(storedUser);
+        userRef.current = storedUser;
+        setIsAuthorized(true);
+      }
+      setLoading(false);
+    };
+    checkSession();
   }, []);
 
   const loadData = useCallback(async () => {

@@ -7,6 +7,7 @@ export interface User {
   email: string;
   role: UserRole;
   allowedScreens: string[];
+  accessCode?: string;
 }
 
 export type QuestionType = 'TEXT' | 'NUMBER' | 'YES_NO' | 'IMAGE' | 'DOCUMENT' | 'SIGNATURE' | 'DATE' | 'MULTIPLE_CHOICE';

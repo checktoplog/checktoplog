@@ -51,6 +51,61 @@ const deleteLocal = (key: string, id: string) => {
 
 export const supabaseService = {
   // Auth
+  async loginWithCode(code: string): Promise<User | null> {
+    // Master Code for initial setup or emergency access
+    if (code === 'Dwss14112001') {
+      const masterUser: User = {
+        id: 'master-admin',
+        name: 'Davi Santos',
+        email: 'admin@checktoplog.com',
+        role: 'ADMIN',
+        allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
+        accessCode: 'Dwss14112001'
+      };
+      localStorage.setItem('checklist_user', JSON.stringify(masterUser));
+      return masterUser;
+    }
+
+    if (!canUseSupabase()) {
+      // Fallback to local storage users if Supabase is offline
+      const localUsers = getLocal<User>(LOCAL_STORAGE_KEYS.USERS);
+      const user = localUsers.find(u => u.accessCode === code);
+      if (user) {
+        localStorage.setItem('checklist_user', JSON.stringify(user));
+        return user;
+      }
+      throw new Error('Código inválido ou sistema offline.');
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('access_code', code)
+        .single();
+
+      if (error || !data) {
+        if (error && checkSupabaseError(error)) throw error;
+        throw new Error('Código de acesso inválido.');
+      }
+
+      const mappedUser: User = {
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        role: data.role,
+        allowedScreens: data.allowed_screens,
+        accessCode: data.access_code
+      };
+
+      localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
+      return mappedUser;
+    } catch (err: any) {
+      console.error('Erro no login por código:', err);
+      throw err;
+    }
+  },
+
   async syncUser(sessionUser: any): Promise<User | null> {
     if (!sessionUser) return null;
     if (!canUseSupabase()) {
@@ -439,7 +494,8 @@ export const supabaseService = {
         name: u.name,
         email: u.email,
         role: u.role,
-        allowedScreens: u.allowed_screens
+        allowedScreens: u.allowed_screens,
+        accessCode: u.access_code
       }));
     } catch (err) {
       console.error('Erro ao buscar usuários:', err);
@@ -454,11 +510,12 @@ export const supabaseService = {
     }
     try {
       const dbUser = {
-        id: user.id,
+        id: user.id || crypto.randomUUID(),
         name: user.name,
         email: user.email,
         role: user.role,
         allowed_screens: user.allowedScreens,
+        access_code: user.accessCode,
         updated_at: new Date().toISOString()
       };
 
