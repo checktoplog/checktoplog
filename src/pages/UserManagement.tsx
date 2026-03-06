@@ -170,7 +170,8 @@ const UserManagement: React.FC = () => {
             {tableError ? 'Para corrigir, execute o comando abaixo no SQL Editor do seu Supabase:' : 'Certifique-se de que a tabela "users" existe no seu Supabase. Execute o comando abaixo no SQL Editor do Supabase:'}
           </p>
           <pre className={`p-4 rounded-xl text-[9px] font-mono overflow-x-auto border ${tableError ? 'bg-red-100/50 text-red-900 border-red-200' : 'bg-white/50 text-blue-900 border-blue-100'}`}>
-{`create table if not exists users (
+{`-- 1. Se a tabela não existir, crie-a:
+create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   email text unique not null,
@@ -180,7 +181,15 @@ const UserManagement: React.FC = () => {
   updated_at timestamp with time zone default now()
 );
 
--- Habilite o acesso público para testes (ou configure RLS)
+-- 2. Se a tabela já existir mas faltar a coluna access_code, execute:
+do $$ 
+begin 
+  if not exists (select 1 from information_schema.columns where table_name='users' and column_name='access_code') then
+    alter table users add column access_code text unique;
+  end if;
+end $$;
+
+-- 3. Habilite o acesso público para testes:
 alter table users enable row level security;
 create policy "Acesso Público" on users for all using (true) with check (true);`}
           </pre>
@@ -365,7 +374,7 @@ create policy "Acesso Público" on users for all using (true) with check (true);
                   <input
                     type="text"
                     className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 text-sm font-bold text-gray-700 outline-none focus:border-orange-500 transition-colors"
-                    value={formData.name}
+                    value={formData.name || ''}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: João Silva"
                   />
@@ -376,7 +385,7 @@ create policy "Acesso Público" on users for all using (true) with check (true);
                     type="email"
                     disabled={!!editingUser}
                     className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 text-sm font-bold text-gray-700 outline-none focus:border-orange-500 disabled:opacity-50 transition-colors"
-                    value={formData.email}
+                    value={formData.email || ''}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
                     placeholder="email@empresa.com"
                   />
@@ -386,7 +395,7 @@ create policy "Acesso Público" on users for all using (true) with check (true);
                   <input
                     type="text"
                     className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 text-sm font-bold text-gray-700 outline-none focus:border-orange-500 transition-colors"
-                    value={formData.accessCode}
+                    value={formData.accessCode || ''}
                     onChange={e => setFormData({ ...formData, accessCode: e.target.value })}
                     placeholder="Ex: Dwss14112001"
                   />
