@@ -90,14 +90,17 @@ const App: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
+      console.log('Iniciando processo de login para o código:', inputCode);
       const loggedUser = await supabaseService.loginWithCode(inputCode);
       if (loggedUser) {
+        console.log('Login bem-sucedido, usuário:', loggedUser.name);
         setUser(loggedUser);
         userRef.current = loggedUser;
         setIsAuthorized(true);
         setAuthError('');
       }
     } catch (err: any) {
+      console.error('Erro no login:', err);
       setAuthError(err.message || 'Código inválido');
     } finally {
       setLoading(false);
@@ -392,14 +395,22 @@ const App: React.FC = () => {
             </div>
             
             {authError && (
-              <p className="text-red-500 text-[10px] font-black uppercase tracking-widest animate-shake">{authError}</p>
+              <div className="bg-red-50 border border-red-100 p-3 rounded-xl animate-shake">
+                <p className="text-red-500 text-[9px] font-black uppercase tracking-widest leading-tight">{authError}</p>
+              </div>
             )}
+
+            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest text-center leading-relaxed">
+              O código diferencia maiúsculas e minúsculas. <br/>
+              Verifique se o código foi criado na aba Equipe.
+            </p>
 
             <button 
               type="submit"
-              className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-200 active:scale-95"
+              disabled={loading}
+              className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-200 active:scale-95 disabled:opacity-50"
             >
-              Entrar
+              {loading ? 'Verificando...' : 'Entrar'}
             </button>
           </form>
           

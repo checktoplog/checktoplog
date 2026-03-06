@@ -52,10 +52,15 @@ const deleteLocal = (key: string, id: string) => {
 export const supabaseService = {
   // Auth
   async loginWithCode(code: string): Promise<User | null> {
+    const cleanCode = (code || '').trim();
+    if (!cleanCode) throw new Error('Por favor, insira um código de acesso.');
+
+    console.log('Tentando login com código:', cleanCode);
+
     // Master Code for initial setup or emergency access
-    if (code === 'Dwss14112001') {
+    if (cleanCode === 'Dwss14112001') {
       const masterUser: User = {
-        id: 'master-admin',
+        id: '00000000-0000-0000-0000-000000000000',
         name: 'Davi Santos',
         email: 'admin@checktoplog.com',
         role: 'ADMIN',
@@ -67,41 +72,51 @@ export const supabaseService = {
     }
 
     if (!canUseSupabase()) {
-      // Fallback to local storage users if Supabase is offline
+      console.warn('Supabase offline, buscando código localmente...');
       const localUsers = getLocal<User>(LOCAL_STORAGE_KEYS.USERS);
-      const user = localUsers.find(u => u.accessCode === code);
+      const user = localUsers.find(u => u.accessCode === cleanCode);
       if (user) {
         localStorage.setItem('checklist_user', JSON.stringify(user));
         return user;
       }
-      throw new Error('Código inválido ou sistema offline.');
+      throw new Error('Código inválido ou sistema offline. Verifique sua conexão.');
     }
 
     try {
+      // Use select instead of single() to handle multiple results or no results gracefully
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('access_code', code)
-        .single();
+        .eq('access_code', cleanCode);
 
-      if (error || !data) {
-        if (error && checkSupabaseError(error)) throw error;
-        throw new Error('Código de acesso inválido.');
+      if (error) {
+        console.error('Erro na query do Supabase:', error);
+        if (checkSupabaseError(error)) throw error;
+        throw new Error('Erro ao verificar código no banco de dados.');
       }
 
+      if (!data || data.length === 0) {
+        console.warn('Nenhum usuário encontrado com o código:', cleanCode);
+        throw new Error('Código de acesso não encontrado. Verifique se o código foi criado na aba Equipe.');
+      }
+
+      // If multiple users have the same code (should be avoided), take the first one
+      const userData = data[0];
+
       const mappedUser: User = {
-        id: data.id,
-        email: data.email,
-        name: data.name,
-        role: data.role,
-        allowedScreens: data.allowed_screens,
-        accessCode: data.access_code
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        allowedScreens: Array.isArray(userData.allowed_screens) ? userData.allowed_screens : [],
+        accessCode: userData.access_code
       };
 
       localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
+      console.log('Login bem-sucedido para:', mappedUser.name);
       return mappedUser;
     } catch (err: any) {
-      console.error('Erro no login por código:', err);
+      console.error('Erro fatal no loginWithCode:', err);
       throw err;
     }
   },
@@ -504,13 +519,19 @@ export const supabaseService = {
   },
 
   async saveUser(user: User): Promise<void> {
+    const userId = user.id && user.id !== '' ? user.id : crypto.randomUUID();
+    const cleanUser = { ...user, id: userId };
+
+    // Always try to save locally as a backup
+    saveLocal(LOCAL_STORAGE_KEYS.USERS, cleanUser);
+
     if (!canUseSupabase()) {
-      saveLocal(LOCAL_STORAGE_KEYS.USERS, user);
+      console.warn('Supabase offline, usuário salvo apenas localmente.');
       return;
     }
     try {
       const dbUser = {
-        id: user.id || crypto.randomUUID(),
+        id: userId,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -519,17 +540,20 @@ export const supabaseService = {
         updated_at: new Date().toISOString()
       };
 
+      console.log('Salvando usuário no Supabase:', dbUser);
+
       const { error } = await supabase
         .from('users')
         .upsert([dbUser]);
 
       if (error) {
+        console.error('Erro ao salvar usuário no Supabase:', error);
         if (checkSupabaseError(error)) throw error;
-        console.error('Error saving user:', error);
         throw error;
       }
+      console.log('Usuário salvo com sucesso no Supabase');
     } catch (err) {
-      console.error('Erro ao salvar usuário:', err);
+      console.error('Erro fatal ao salvar usuário:', err);
       throw err;
     }
   },

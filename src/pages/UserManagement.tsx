@@ -43,8 +43,8 @@ const UserManagement: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.email) {
-      alert("Preencha os campos obrigatórios.");
+    if (!formData.name || !formData.email || !formData.accessCode) {
+      alert("Preencha todos os campos, incluindo o código de acesso.");
       return;
     }
 
@@ -56,10 +56,11 @@ const UserManagement: React.FC = () => {
         email: formData.email!,
         role: formData.role as UserRole,
         allowedScreens: formData.allowedScreens!,
-        accessCode: formData.accessCode
+        accessCode: formData.accessCode.trim()
       };
 
       await supabaseService.saveUser(user);
+      alert("Usuário salvo com sucesso! Agora ele pode entrar usando o código: " + formData.accessCode.trim());
       await loadUsers();
       setShowModal(false);
       setEditingUser(null);
@@ -70,9 +71,9 @@ const UserManagement: React.FC = () => {
         allowedScreens: ['checklists', 'batch_download'],
         accessCode: ''
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving user:", error);
-      alert("Erro ao salvar usuário.");
+      alert("Erro ao salvar usuário: " + (error.message || "Erro desconhecido"));
     } finally {
       setLoading(false);
     }
