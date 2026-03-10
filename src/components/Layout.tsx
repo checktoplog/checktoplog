@@ -106,10 +106,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
               <button 
                 onClick={onLogout}
                 className="flex flex-col items-center justify-center bg-gray-50 text-gray-400 p-2 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors group shrink-0"
-                title="Sair"
+                title="Limpar Sessão"
               >
-                <span className="text-sm">🚪</span>
-                <span className="text-[7px] font-black uppercase tracking-widest mt-0.5">Sair</span>
+                <span className="text-sm">🔄</span>
+                <span className="text-[7px] font-black uppercase tracking-widest mt-0.5">Reset</span>
               </button>
             </div>
           </div>

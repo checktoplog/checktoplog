@@ -52,74 +52,16 @@ const deleteLocal = (key: string, id: string) => {
 export const supabaseService = {
   // Auth
   async loginWithCode(code: string): Promise<User | null> {
-    const cleanCode = (code || '').trim();
-    if (!cleanCode) throw new Error('Por favor, insira um código de acesso.');
-
-    console.log('Tentando login com código:', cleanCode);
-
-    // Master Code for initial setup or emergency access
-    if (cleanCode === 'Dwss14112001') {
-      const masterUser: User = {
-        id: '00000000-0000-0000-0000-000000000000',
-        name: 'Davi Santos',
-        email: 'admin@checktoplog.com',
-        role: 'ADMIN',
-        allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
-        accessCode: 'Dwss14112001'
-      };
-      localStorage.setItem('checklist_user', JSON.stringify(masterUser));
-      return masterUser;
-    }
-
-    if (!isSupabaseConfigured) {
-      console.warn('Supabase não configurado. Buscando código localmente...');
-      const localUsers = getLocal<User>(LOCAL_STORAGE_KEYS.USERS);
-      const user = localUsers.find(u => u.accessCode === cleanCode);
-      if (user) {
-        localStorage.setItem('checklist_user', JSON.stringify(user));
-        return user;
-      }
-      throw new Error('Sistema de sincronização (Supabase) não configurado. Defina as chaves VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
-    }
-
-    if (isSupabaseBroken()) {
-      throw new Error('A conexão com o banco de dados está instável. Tente novamente em instantes.');
-    }
-
-    try {
-      const { data, error, status } = await supabase
-        .from('users')
-        .select('*')
-        .eq('access_code', cleanCode);
-
-      if (error) {
-        console.error('Erro na query do Supabase:', error);
-        if (error.code === 'PGRST116') throw new Error('Tabela de usuários não encontrada no banco de dados.');
-        if (error.code === '42P01') throw new Error('A tabela "users" não existe no seu Supabase. Crie-a no SQL Editor.');
-        throw new Error(`Erro no banco de dados (${error.code}): ${error.message}`);
-      }
-
-      if (!data || data.length === 0) {
-        console.warn('Nenhum usuário encontrado com o código:', cleanCode);
-        throw new Error('Código de acesso não encontrado. Verifique se o código foi criado corretamente na aba Equipe e se a sincronização está ativa.');
-      }
-
-      const userData = data[0];
-      const mappedUser: User = {
-        id: userData.id,
-        email: userData.email,
-        name: userData.name,
-        role: userData.role,
-        allowedScreens: Array.isArray(userData.allowed_screens) ? userData.allowed_screens : [],
-        accessCode: userData.access_code
-      };
-
-      localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
-      return mappedUser;
-    } catch (err: any) {
-      console.error('Erro detalhado no login:', err);
-      throw err;
-    }
+    // Retorna sempre o administrador padrão para simplificar, já que o login foi removido
+    const adminUser: User = {
+      id: '00000000-0000-0000-0000-000000000000',
+      name: 'Administrador',
+      email: 'admin@checktoplog.com',
+      role: 'ADMIN',
+      allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
+    };
+    localStorage.setItem('checklist_user', JSON.stringify(adminUser));
+    return adminUser;
   },
 
   async syncUser(sessionUser: any): Promise<User | null> {
@@ -197,72 +139,9 @@ export const supabaseService = {
     }
   },
 
-  async login(email: string, password?: string): Promise<User | null> {
-    if (!canUseSupabase()) {
-      throw new Error('O sistema de autenticação (Supabase) não está configurado corretamente.');
-    }
-
-    if (password) {
-      try {
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (authError) {
-          console.error('Auth error:', authError.message);
-          
-          // Check if it's an API key error and mark as broken
-          if (checkSupabaseError(authError)) {
-            throw new Error('Erro de Configuração: A chave de API (anon key) não corresponde à URL do projeto Supabase ou é inválida. Verifique se copiou as chaves corretamente do painel do Supabase.');
-          }
-
-          throw new Error(authError.message === 'Invalid login credentials' 
-            ? 'E-mail ou senha incorretos no Supabase.' 
-            : `Erro de Autenticação: ${authError.message}`);
-        }
-
-        if (authData.user) {
-          return await this.syncUser(authData.user);
-        }
-        return null;
-      } catch (err: any) {
-        if (checkSupabaseError(err)) {
-          throw new Error('Erro de Conexão: Não foi possível conectar ao Supabase. Verifique sua chave de API e URL.');
-        }
-        throw err;
-      }
-    }
-
-    throw new Error('A senha do Supabase é obrigatória para acessar o sistema.');
-  },
-
   async logout() {
-    try {
-      if (canUseSupabase()) {
-        await supabase.auth.signOut();
-      }
-    } catch (err) {
-      console.error('Erro ao fazer logout:', err);
-    } finally {
-      localStorage.removeItem('checklist_user');
-      window.location.reload(); // Force reload to clear state
-    }
-  },
-
-  async signInWithGoogle(): Promise<void> {
-    if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado.');
-    }
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin
-      }
-    });
-
-    if (error) throw error;
+    localStorage.clear();
+    window.location.reload();
   },
 
   async getUser(): Promise<User | null> {

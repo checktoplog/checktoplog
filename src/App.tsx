@@ -11,7 +11,6 @@ import UserManagement from './pages/UserManagement.tsx';
 import Reports from './pages/Reports.tsx';
 import BatchDownload from './pages/BatchDownload.tsx';
 import Dashboard from './pages/Dashboard.tsx';
-import LoginPage from './pages/LoginPage.tsx';
 
 interface ErrorBoundaryProps {
   children?: React.ReactNode;
@@ -78,34 +77,11 @@ const GUEST_USER: User = {
 };
 
 const App: React.FC = () => {
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [inputCode, setInputCode] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [user, setUser] = useState<User | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(true);
+  const [user, setUser] = useState<User | null>(GUEST_USER);
   const [loading, setLoading] = useState(false);
   const [isBroken, setIsBroken] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
-
-  const handleAccessSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      console.log('Iniciando processo de login para o código:', inputCode);
-      const loggedUser = await supabaseService.loginWithCode(inputCode);
-      if (loggedUser) {
-        console.log('Login bem-sucedido, usuário:', loggedUser.name);
-        setUser(loggedUser);
-        userRef.current = loggedUser;
-        setIsAuthorized(true);
-        setAuthError('');
-      }
-    } catch (err: any) {
-      console.error('Erro no login:', err);
-      setAuthError(err.message || 'Código inválido');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
   const [responses, setResponses] = useState<ChecklistResponse[]>([]);
@@ -114,7 +90,7 @@ const App: React.FC = () => {
   const [filterDate, setFilterDate] = useState('');
   const [filterTemplateId, setFilterTemplateId] = useState('');
 
-  const userRef = useRef<User | null>(null);
+  const userRef = useRef<User | null>(GUEST_USER);
 
   const [activeTemplate, setActiveTemplate] = useState<ChecklistTemplate | null>(null);
   const [editTemplateId, setEditTemplateId] = useState<string | undefined>();
@@ -135,18 +111,7 @@ const App: React.FC = () => {
     }
   }, [currentPage]);
 
-  useEffect(() => {
-    const clearSession = async () => {
-      // Força o logout ao carregar o app para evitar login automático indesejado
-      await supabase.auth.signOut();
-      localStorage.removeItem('checklist_user');
-      setLoading(false);
-    };
-    clearSession();
-  }, []);
-
   const loadData = useCallback(async () => {
-    if (!userRef.current) return;
     try {
       const [t, r] = await Promise.all([
         supabaseService.getTemplates(),
@@ -160,13 +125,13 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (user) loadData();
-  }, [loadData, currentPage, user]);
+    loadData();
+  }, [loadData, currentPage]);
 
   const handleLogout = async () => {
-    if (window.confirm('Deseja realmente sair?')) {
-      setIsAuthorized(false);
-      setInputCode('');
+    if (window.confirm('Deseja realmente limpar a sessão local?')) {
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
@@ -370,80 +335,6 @@ const App: React.FC = () => {
   };
 
   if (loading) return <div className="h-screen w-full flex items-center justify-center bg-gray-50"><div className="w-16 h-16 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div></div>;
-
-  if (!isAuthorized) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-gray-100 max-w-md w-full text-center">
-          <div className="text-5xl mb-6">🔐</div>
-          <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tighter mb-2">Acesso ao CheckTopLog</h1>
-          
-          <div className="mb-8 flex flex-col items-center space-y-2">
-            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${isSupabaseConfigured ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-              <span>{isSupabaseConfigured ? 'Sincronização Ativa' : 'Sincronização Inativa'}</span>
-            </div>
-            {!isSupabaseConfigured && (
-              <p className="text-[8px] text-red-400 font-bold uppercase tracking-tight max-w-[200px]">
-                Defina as chaves do Supabase para habilitar o acesso multi-dispositivo.
-              </p>
-            )}
-          </div>
-          
-          <form onSubmit={handleAccessSubmit} className="space-y-4">
-            {localStorage.getItem('checklist_user') && (
-              <div className="mb-4 p-3 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
-                <div className="text-left">
-                  <p className="text-[8px] font-black text-orange-800 uppercase">Sessão Ativa:</p>
-                  <p className="text-[10px] font-bold text-orange-600 truncate max-w-[150px]">
-                    {JSON.parse(localStorage.getItem('checklist_user')!).name}
-                  </p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => { localStorage.removeItem('checklist_user'); window.location.reload(); }}
-                  className="text-[8px] font-black text-white bg-orange-600 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-orange-700 transition-all"
-                >
-                  Limpar
-                </button>
-              </div>
-            )}
-            <div className="relative">
-              <input 
-                type="password"
-                value={inputCode}
-                onChange={(e) => setInputCode(e.target.value)}
-                placeholder="Código de Acesso"
-                className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all text-center tracking-[0.5em]"
-                autoFocus
-              />
-            </div>
-            
-            {authError && (
-              <div className="bg-red-50 border border-red-100 p-3 rounded-xl animate-shake">
-                <p className="text-red-500 text-[9px] font-black uppercase tracking-widest leading-tight">{authError}</p>
-              </div>
-            )}
-
-            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest text-center leading-relaxed">
-              O código diferencia maiúsculas e minúsculas. <br/>
-              Verifique se o código foi criado na aba Equipe.
-            </p>
-
-            <button 
-              type="submit"
-              disabled={loading}
-              className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-200 active:scale-95 disabled:opacity-50"
-            >
-              {loading ? 'Verificando...' : 'Entrar'}
-            </button>
-          </form>
-          
-          <p className="mt-8 text-[9px] text-gray-300 uppercase font-black tracking-widest">© 2026 CheckTopLog • Acesso Temporário</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <ErrorBoundary>

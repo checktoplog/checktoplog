@@ -424,7 +424,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
               const img = qData.imgs[i];
               if (img.startsWith('data:image')) {
                 const path = `${response.id}/${qId}_img_${i}_${Date.now()}.jpg`;
-                const url = await supabaseService.uploadFile('checklists', path, img);
+                const url = await supabaseService.uploadFile('responses', path, img);
                 uploadedImgs.push(url || img);
               } else {
                 uploadedImgs.push(img);
@@ -436,7 +436,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           // Upload de Assinatura
           if (question.type === 'SIGNATURE' && qData.val && qData.val.startsWith('data:image')) {
             const path = `${response.id}/${qId}_signature_${Date.now()}.png`;
-            const url = await supabaseService.uploadFile('checklists', path, qData.val);
+            const url = await supabaseService.uploadFile('responses', path, qData.val);
             updatedData[stageId][qId].val = url || qData.val;
           }
         }
@@ -454,7 +454,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           
           setFinalizeProgress('Enviando PDF para o servidor...');
           const pdfPath = `report_${response.id}_${Date.now()}.pdf`;
-          const url = await supabaseService.uploadFile('reports', pdfPath, pdfBlob);
+          const url = await supabaseService.uploadFile('responses', pdfPath, pdfBlob);
           finalPdfUrl = url || '';
         }
       } catch (pdfErr) {
