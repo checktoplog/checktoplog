@@ -136,16 +136,13 @@ const App: React.FC = () => {
   }, [currentPage]);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const storedUser = await supabaseService.getUser();
-      if (storedUser) {
-        setUser(storedUser);
-        userRef.current = storedUser;
-        setIsAuthorized(true);
-      }
+    const clearSession = async () => {
+      // Força o logout ao carregar o app para evitar login automático indesejado
+      await supabase.auth.signOut();
+      localStorage.removeItem('checklist_user');
       setLoading(false);
     };
-    checkSession();
+    clearSession();
   }, []);
 
   const loadData = useCallback(async () => {

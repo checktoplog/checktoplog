@@ -14,6 +14,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
     id: editId && editId !== "" ? editId : `tmpl_${Math.random().toString(36).substr(2, 9)}`,
     title: '',
     signatureTitle: 'Assinatura do Responsável',
+    customIdPlaceholder: '',
     image: '',
     stages: [
       { id: 'stg_1', name: 'Etapa na Empresa', questions: [], videos: [] },
@@ -155,14 +156,14 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
           type="text"
           className="w-full bg-gray-50 border-gray-100 rounded-xl p-4 text-xl font-black outline-none focus:ring-2 focus:ring-orange-500"
           placeholder="Título do Checklist"
-          value={template.title}
+          value={template.title || ''}
           onChange={e => setTemplate(prev => ({ ...prev, title: e.target.value }))}
         />
         <input
           type="text"
           className="w-full bg-gray-50 border-gray-100 rounded-xl p-4 font-bold outline-none focus:ring-2 focus:ring-orange-500"
           placeholder="Cargo do Responsável (Ex: Supervisor)"
-          value={template.signatureTitle}
+          value={template.signatureTitle || ''}
           onChange={e => setTemplate(prev => ({ ...prev, signatureTitle: e.target.value }))}
         />
         <input
@@ -206,7 +207,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
               <span className="bg-orange-600 text-white w-10 h-10 flex items-center justify-center rounded-xl font-black">{sIdx + 1}</span>
               <input 
                 className="bg-transparent border-b border-orange-200 text-lg font-black outline-none focus:border-orange-600"
-                value={stage.name}
+                value={stage.name || ''}
                 onChange={e => {
                   const newStages = [...template.stages];
                   newStages[sIdx].name = e.target.value;
@@ -225,7 +226,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
                   <input
                     className="flex-1 bg-white border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="Enunciado da pergunta..."
-                    value={q.text}
+                    value={q.text || ''}
                     onChange={e => updateQuestion(sIdx, qIdx, { text: e.target.value })}
                   />
                 </div>
@@ -342,7 +343,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
                     <p className="text-[10px] font-black text-gray-400 uppercase">Opções de Escolha</p>
                     {(q.options || []).map((opt, optIdx) => (
                       <div key={optIdx} className="flex gap-2">
-                        <input className="flex-1 bg-gray-50 border rounded-lg p-2 text-xs" value={opt} onChange={e => {
+                        <input className="flex-1 bg-gray-50 border rounded-lg p-2 text-xs" value={opt || ''} onChange={e => {
                           const opts = [...(q.options || [])];
                           opts[optIdx] = e.target.value;
                           updateQuestion(sIdx, qIdx, { options: opts });
