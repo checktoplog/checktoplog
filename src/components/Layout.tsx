@@ -37,7 +37,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-gray-50">
       {/* Mobile Top Bar */}
       <div className="md:hidden bg-orange-600 text-white p-4 flex justify-between items-center shadow-lg z-50 shrink-0">
-        <h1 className="text-lg font-black tracking-tighter">CheckTopLog</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-black tracking-tighter">CheckTopLog</h1>
+          <div className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} title={isSupabaseConfigured ? 'Online' : 'Offline'}></div>
+        </div>
         <button 
           onClick={() => setSidebarOpen(!sidebarOpen)} 
           className="w-10 h-10 flex items-center justify-center bg-white/20 rounded-xl active:scale-90 transition-transform text-xl"

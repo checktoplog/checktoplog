@@ -186,7 +186,7 @@ export const supabaseService = {
     saveLocal(LOCAL_STORAGE_KEYS.TEMPLATES, template);
 
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado. O modelo foi salvo apenas localmente no seu navegador.');
+      throw new Error('Supabase não configurado no Vercel. Verifique se adicionou VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas configurações do projeto e fez um REDEPLOY.');
     }
     try {
       const dbTemplate = {
@@ -315,7 +315,7 @@ export const supabaseService = {
     saveLocal(LOCAL_STORAGE_KEYS.RESPONSES, response);
 
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado. O checklist foi salvo apenas localmente no seu navegador.');
+      throw new Error('Supabase não configurado no Vercel. Verifique se adicionou VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas configurações do projeto e fez um REDEPLOY.');
     }
     try {
       const dbResponse = {

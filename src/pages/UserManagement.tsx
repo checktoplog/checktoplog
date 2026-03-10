@@ -171,22 +171,50 @@ Certifique-se de definir as variáveis de ambiente no seu painel de deploy (Verc
   return (
     <div className="space-y-6 animate-fadeIn pb-20 px-2 md:px-0">
       {!isSupabaseConfigured && (
-        <div className="bg-red-50 border-2 border-red-200 p-6 rounded-[2rem] shadow-sm">
+        <div className="bg-red-50 border-2 border-red-200 p-8 rounded-[2rem] shadow-sm animate-pulse">
           <div className="flex items-center space-x-4 mb-4">
-            <span className="text-3xl">⚠️</span>
-            <h3 className="text-red-800 font-black uppercase tracking-tighter">Sincronização Desativada</h3>
+            <span className="text-4xl">⚠️</span>
+            <h3 className="text-red-800 font-black uppercase tracking-tighter text-lg">Supabase não configurado no Vercel</h3>
           </div>
-          <p className="text-red-700 text-[10px] font-bold uppercase tracking-widest leading-relaxed">
-            As chaves do Supabase não foram configuradas. As alterações feitas aqui ficarão salvas apenas neste navegador e não serão sincronizadas com outros dispositivos.
+          <p className="text-red-700 text-sm font-bold leading-relaxed mb-6">
+            O aplicativo detectou que as chaves do banco de dados estão faltando no seu painel da Vercel. Siga estes passos para ativar a sincronização:
           </p>
           
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="bg-white/50 p-4 rounded-2xl border border-red-100">
+              <p className="text-[10px] font-black text-red-800 uppercase mb-2">1. Adicione as Variáveis</p>
+              <ul className="space-y-1 text-[9px] font-bold text-red-600 uppercase">
+                <li>• VITE_SUPABASE_URL</li>
+                <li>• VITE_SUPABASE_ANON_KEY</li>
+              </ul>
+            </div>
+            <div className="bg-white/50 p-4 rounded-2xl border border-red-100">
+              <p className="text-[10px] font-black text-red-800 uppercase mb-2">2. Faça o Redeploy</p>
+              <p className="text-[9px] font-bold text-red-600 uppercase">
+                Vá em Deployments {'>'} Redeploy. Sem isso, as chaves não funcionam.
+              </p>
+            </div>
+          </div>
+          
           <button 
-            onClick={() => setDebugInfo(`Configuração ausente:
-URL: ${import.meta.env.VITE_SUPABASE_URL ? 'Definida' : 'Ausente'}
-KEY: ${import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Definida' : 'Ausente'}
+            onClick={() => {
+              const url = import.meta.env.VITE_SUPABASE_URL || '';
+              const key = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+              const isVercel = window.location.hostname.includes('vercel.app');
+              const isAIStudio = window.location.hostname.includes('run.app');
 
-Certifique-se de definir as variáveis de ambiente no seu painel de deploy (Vercel/Cloud Run).`)}
-            className="mt-4 text-[9px] font-black text-red-600 uppercase underline"
+              setDebugInfo(`🔍 DIAGNÓSTICO TÉCNICO:
+--------------------------------
+Ambiente Detectado: ${isVercel ? 'VERCEL' : isAIStudio ? 'AI STUDIO PREVIEW' : 'LOCAL/OUTRO'}
+URL Detectada: ${url ? `${url.substring(0, 15)}... (OK)` : 'AUSENTE ❌'}
+KEY Detectada: ${key ? `${key.substring(0, 10)}... (OK)` : 'AUSENTE ❌'}
+
+ONDE CONFIGURAR:
+${isAIStudio ? '👉 No menu SETTINGS (Engrenagem) aqui do AI Studio.' : '👉 No painel da VERCEL (Settings > Environment Variables).'}
+
+DICA: Se você configurou no Vercel agora, você PRECISA ir em 'Deployments' e clicar em 'REDEPLOY' para as chaves passarem a valer.`);
+            }}
+            className="text-[9px] font-black text-red-600 uppercase underline"
           >
             Ver Diagnóstico de Conexão
           </button>

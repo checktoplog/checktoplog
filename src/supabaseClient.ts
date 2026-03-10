@@ -1,48 +1,37 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js"
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-// Improved check to avoid using placeholder values
+// Mantendo esta verificação para que o App saiba quando mostrar os avisos de configuração
 export const isSupabaseConfigured = 
   !!supabaseUrl && 
   supabaseUrl.startsWith('https://') && 
-  !supabaseUrl.includes('your-project') &&
-  !supabaseUrl.includes('placeholder') &&
   !!supabaseAnonKey &&
-  supabaseAnonKey.length > 20 && 
-  !supabaseAnonKey.includes('your-anon-key') &&
-  !supabaseAnonKey.includes('placeholder');
+  supabaseAnonKey.length > 20;
 
 if (!isSupabaseConfigured) {
-  console.error('SUPABASE CONFIGURATION MISSING or INVALID:', {
-    urlSet: !!supabaseUrl,
-    urlValid: supabaseUrl.startsWith('https://'),
-    keySet: !!supabaseAnonKey,
-    keyLength: supabaseAnonKey.length
-  });
-} else {
-  console.log('Supabase initialized with URL:', supabaseUrl.substring(0, 15) + '...');
-  console.log('Supabase Key starts with:', supabaseAnonKey.substring(0, 10) + '...');
+  console.error("Supabase não configurado ou chaves inválidas");
 }
 
+// Funções auxiliares que o restante do código utiliza para gerenciar o estado da conexão
 let runtimeSupabaseBroken = false;
-
-export const markSupabaseAsBroken = () => {
-  if (!runtimeSupabaseBroken) {
-    console.warn('Supabase marked as broken at runtime.');
-    runtimeSupabaseBroken = true;
-    // Trigger a custom event so the app can react
-    window.dispatchEvent(new CustomEvent('supabase-broken'));
-  }
+export const markSupabaseAsBroken = () => { 
+  runtimeSupabaseBroken = true; 
+  window.dispatchEvent(new CustomEvent('supabase-broken')); 
 };
-
 export const isSupabaseBroken = () => runtimeSupabaseBroken;
-
 export const canUseSupabaseRuntime = () => isSupabaseConfigured && !runtimeSupabaseBroken;
 
-// Use a valid-looking placeholder URL to prevent "Failed to fetch" from empty string
-const finalUrl = isSupabaseConfigured ? supabaseUrl : 'https://placeholder-project.supabase.co';
-const finalKey = isSupabaseConfigured ? supabaseAnonKey : 'placeholder-key';
-
-export const supabase = createClient(finalUrl, finalKey);
+// Criando o cliente com a configuração de Auth solicitada
+// Usamos placeholders caso as chaves não existam para evitar que o app quebre no carregamento
+export const supabase = createClient(
+  isSupabaseConfigured ? supabaseUrl : 'https://placeholder-project.supabase.co',
+  isSupabaseConfigured ? supabaseAnonKey : 'placeholder-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true
+    }
+  }
+);
