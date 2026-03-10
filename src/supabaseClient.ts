@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = (process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL || '').trim();
-const supabaseAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
 // Improved check to avoid using placeholder values
 export const isSupabaseConfigured = 
@@ -15,7 +15,12 @@ export const isSupabaseConfigured =
   !supabaseAnonKey.includes('placeholder');
 
 if (!isSupabaseConfigured) {
-  console.error('SUPABASE CONFIGURATION MISSING: Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
+  console.error('SUPABASE CONFIGURATION MISSING or INVALID:', {
+    urlSet: !!supabaseUrl,
+    urlValid: supabaseUrl.startsWith('https://'),
+    keySet: !!supabaseAnonKey,
+    keyLength: supabaseAnonKey.length
+  });
 } else {
   console.log('Supabase initialized with URL:', supabaseUrl.substring(0, 15) + '...');
   console.log('Supabase Key starts with:', supabaseAnonKey.substring(0, 10) + '...');

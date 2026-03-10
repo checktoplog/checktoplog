@@ -114,8 +114,18 @@ const UserManagement: React.FC = () => {
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [syncing, setSyncing] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   const syncLocalData = async () => {
+    if (!isSupabaseConfigured) {
+      setDebugInfo(`Configuração ausente:
+URL: ${import.meta.env.VITE_SUPABASE_URL ? 'Definida' : 'Ausente'}
+KEY: ${import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Definida' : 'Ausente'}
+
+Certifique-se de definir as variáveis de ambiente no seu painel de deploy (Vercel/Cloud Run).`);
+      return;
+    }
+
     if (!confirm('Deseja enviar todos os dados salvos localmente neste navegador para o Supabase? Isso ajudará a unificar as informações entre todos os usuários.')) return;
     
     setSyncing(true);
@@ -170,6 +180,24 @@ const UserManagement: React.FC = () => {
           <p className="text-red-700 text-[10px] font-bold uppercase tracking-widest leading-relaxed">
             As chaves do Supabase não foram configuradas. As alterações feitas aqui ficarão salvas apenas neste navegador e não serão sincronizadas com outros dispositivos.
           </p>
+          
+          <button 
+            onClick={() => setDebugInfo(`Configuração ausente:
+URL: ${import.meta.env.VITE_SUPABASE_URL ? 'Definida' : 'Ausente'}
+KEY: ${import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Definida' : 'Ausente'}
+
+Certifique-se de definir as variáveis de ambiente no seu painel de deploy (Vercel/Cloud Run).`)}
+            className="mt-4 text-[9px] font-black text-red-600 uppercase underline"
+          >
+            Ver Diagnóstico de Conexão
+          </button>
+
+          {debugInfo && (
+            <div className="mt-4 p-4 bg-white/80 border border-red-200 rounded-xl">
+              <pre className="text-[9px] font-mono whitespace-pre-wrap text-red-900">{debugInfo}</pre>
+              <button onClick={() => setDebugInfo(null)} className="mt-2 text-[9px] font-black text-red-700 uppercase underline">Fechar</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -181,6 +209,14 @@ const UserManagement: React.FC = () => {
               {tableError ? 'Tabela Não Encontrada' : 'Configuração do Banco de Dados'}
             </h3>
           </div>
+          
+          {debugInfo && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <p className="text-yellow-800 text-[10px] font-black uppercase mb-2">🔍 Diagnóstico de Conexão</p>
+              <pre className="text-[9px] font-mono whitespace-pre-wrap text-yellow-900">{debugInfo}</pre>
+              <button onClick={() => setDebugInfo(null)} className="mt-2 text-[9px] font-black text-yellow-700 uppercase underline">Fechar Diagnóstico</button>
+            </div>
+          )}
           
           {tableError && (
             <div className="mb-4 p-4 bg-white/50 rounded-xl border border-red-100">
