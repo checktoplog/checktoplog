@@ -327,6 +327,7 @@ export const supabaseService = {
       if (error) {
         if (checkSupabaseError(error)) throw error;
         console.error('Error saving template:', error);
+        if (error.code === '42P01') throw new Error('A tabela "templates" não existe no seu Supabase. Vá na aba Equipe e execute o script de configuração completo.');
         throw error;
       }
     } catch (err) {
@@ -459,6 +460,7 @@ export const supabaseService = {
       if (error) {
         if (checkSupabaseError(error)) throw error;
         console.error('Error saving response:', error);
+        if (error.code === '42P01') throw new Error('A tabela "responses" não existe no seu Supabase. Vá na aba Equipe e execute o script de configuração completo.');
         throw error;
       }
     } catch (err) {

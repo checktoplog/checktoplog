@@ -113,6 +113,30 @@ const UserManagement: React.FC = () => {
   };
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [syncing, setSyncing] = useState(false);
+
+  const syncLocalData = async () => {
+    if (!confirm('Deseja enviar todos os dados salvos localmente neste navegador para o Supabase? Isso ajudará a unificar as informações entre todos os usuários.')) return;
+    
+    setSyncing(true);
+    try {
+      const templates = JSON.parse(localStorage.getItem('checktoplog_templates_local') || '[]');
+      const responses = JSON.parse(localStorage.getItem('checktoplog_responses_local') || '[]');
+      const localUsers = JSON.parse(localStorage.getItem('checktoplog_users_local') || '[]');
+      
+      let count = 0;
+      for (const t of templates) { await supabaseService.saveTemplate(t); count++; }
+      for (const r of responses) { await supabaseService.saveResponse(r); count++; }
+      for (const u of localUsers) { await supabaseService.saveUser(u); count++; }
+      
+      alert(`Sincronização concluída! ${count} itens foram enviados para o Supabase.`);
+      loadUsers();
+    } catch (err: any) {
+      alert(`Erro na sincronização: ${err.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const testConnection = async () => {
     setTestStatus('testing');
@@ -167,10 +191,12 @@ const UserManagement: React.FC = () => {
           )}
 
           <p className={`${tableError ? 'text-red-700' : 'text-blue-700'} text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-4`}>
-            {tableError ? 'Para corrigir, execute o comando abaixo no SQL Editor do seu Supabase:' : 'Certifique-se de que a tabela "users" existe no seu Supabase. Execute o comando abaixo no SQL Editor do Supabase:'}
+            {tableError ? 'Para corrigir, execute o comando abaixo no SQL Editor do seu Supabase:' : 'Certifique-se de que todas as tabelas existem no seu Supabase. Execute o comando abaixo no SQL Editor do Supabase:'}
           </p>
           <pre className={`p-4 rounded-xl text-[9px] font-mono overflow-x-auto border ${tableError ? 'bg-red-100/50 text-red-900 border-red-200' : 'bg-white/50 text-blue-900 border-blue-100'}`}>
-{`-- 1. Se a tabela não existir, crie-a:
+{`-- CONFIGURAÇÃO COMPLETA DO BANCO DE DADOS
+
+-- 1. Tabela de Usuários
 create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -181,19 +207,62 @@ create table if not exists users (
   updated_at timestamp with time zone default now()
 );
 
--- 2. Se a tabela já existir mas faltar a coluna access_code, execute:
+-- 2. Tabela de Modelos (Templates)
+create table if not exists templates (
+  id text primary key,
+  title text not null,
+  stages jsonb not null default '[]',
+  signature_title text,
+  custom_id_placeholder text,
+  image_url text,
+  updated_at timestamp with time zone default now()
+);
+
+-- 3. Tabela de Respostas (Checklists)
+create table if not exists responses (
+  id text primary key,
+  template_id text not null,
+  custom_id text,
+  status text not null default 'DRAFT',
+  current_stage_id text,
+  data jsonb not null default '{}',
+  stage_time_spent jsonb default '{}',
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+  completed_at timestamp with time zone,
+  pdf_url text
+);
+
+-- 4. Habilitar Acesso Público (RLS)
+alter table users enable row level security;
+drop policy if exists "Acesso Público Users" on users;
+create policy "Acesso Público Users" on users for all using (true) with check (true);
+
+alter table templates enable row level security;
+drop policy if exists "Acesso Público Templates" on templates;
+create policy "Acesso Público Templates" on templates for all using (true) with check (true);
+
+alter table responses enable row level security;
+drop policy if exists "Acesso Público Responses" on responses;
+create policy "Acesso Público Responses" on responses for all using (true) with check (true);
+
+-- 5. Migração: Adicionar access_code se faltar
 do $$ 
 begin 
   if not exists (select 1 from information_schema.columns where table_name='users' and column_name='access_code') then
     alter table users add column access_code text unique;
   end if;
-end $$;
-
--- 3. Habilite o acesso público para testes:
-alter table users enable row level security;
-drop policy if exists "Acesso Público" on users;
-create policy "Acesso Público" on users for all using (true) with check (true);`}
+end $$;`}
           </pre>
+
+          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <p className="text-blue-800 text-[10px] font-black uppercase tracking-widest mb-2">📁 Configuração de Arquivos (Storage)</p>
+            <p className="text-blue-700 text-[9px] font-medium leading-relaxed">
+              Para salvar fotos e assinaturas, crie dois buckets no menu <b>Storage</b> do Supabase chamados: 
+              <span className="font-bold"> "templates"</span> e <span className="font-bold"> "responses"</span>. 
+              Certifique-se de marcá-los como <span className="font-bold text-red-600">PUBLIC</span>.
+            </p>
+          </div>
           
           <div className="flex gap-2 mt-4">
             <button 
@@ -207,6 +276,13 @@ create policy "Acesso Público" on users for all using (true) with check (true);
               className="bg-white border border-red-200 text-red-600 px-6 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-50 transition-all"
             >
               {testStatus === 'testing' ? 'Testando...' : 'Testar Conexão'}
+            </button>
+            <button 
+              onClick={syncLocalData}
+              disabled={syncing}
+              className="bg-blue-600 text-white px-6 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50"
+            >
+              {syncing ? 'Sincronizando...' : 'Sincronizar Dados Locais'}
             </button>
           </div>
         </div>

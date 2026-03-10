@@ -80,6 +80,14 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
           </nav>
 
           <div className="p-6 border-t bg-gray-50/50 space-y-4">
+            {/* Sync Status */}
+            <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl border ${isSupabaseConfigured ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+              <span className="text-[8px] font-black uppercase tracking-widest">
+                {isSupabaseConfigured ? 'Sincronização Ativa' : 'Sincronização Inativa'}
+              </span>
+            </div>
+
             <button 
               onClick={() => { setShowQR(true); setSidebarOpen(false); }}
               className="w-full flex items-center justify-center space-x-2 bg-white border-2 border-orange-100 text-orange-600 p-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-50 transition-all shadow-sm mb-2"
