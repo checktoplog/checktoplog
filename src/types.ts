@@ -10,7 +10,7 @@ export interface User {
   accessCode?: string;
 }
 
-export type QuestionType = 'TEXT' | 'NUMBER' | 'YES_NO' | 'IMAGE' | 'DOCUMENT' | 'SIGNATURE' | 'DATE' | 'MULTIPLE_CHOICE';
+export type QuestionType = 'TEXT' | 'NUMBER' | 'YES_NO' | 'IMAGE' | 'DOCUMENT' | 'SIGNATURE' | 'DATE' | 'MULTIPLE_CHOICE' | 'OS';
 
 export interface Question {
   id: string;
@@ -31,6 +31,14 @@ export interface Stage {
   videos: string[]; 
 }
 
+export interface ExternalDataRow {
+  tipo_programa: string;
+  os: string;
+  cod_galpao: string;
+  desc_galpao: string;
+  cliente: string;
+}
+
 export interface ChecklistTemplate {
   id: string;
   title: string;
@@ -38,6 +46,8 @@ export interface ChecklistTemplate {
   signatureTitle: string;
   customIdPlaceholder?: string;
   image?: string; 
+  externalData?: ExternalDataRow[];
+  externalDataImportedAt?: string;
 }
 
 export interface ChecklistResponse {
@@ -48,6 +58,7 @@ export interface ChecklistResponse {
   currentStageId: string;
   data: Record<string, any>; 
   stageTimeSpent?: Record<string, number>; 
+  externalDataRow?: ExternalDataRow;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;

@@ -23,6 +23,36 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
   });
 
   const [saving, setSaving] = useState(false);
+  const [excelPaste, setExcelPaste] = useState('');
+
+  const processExcelData = () => {
+    if (!excelPaste.trim()) return;
+    
+    const lines = excelPaste.trim().split('\n');
+    const newData = lines.map(line => {
+      const cols = line.split('\t'); // Excel usually pastes as TSV
+      if (cols.length < 2) return null;
+      return {
+        tipo_programa: cols[0]?.trim() || '',
+        os: cols[1]?.trim() || '',
+        cod_galpao: cols[2]?.trim() || '',
+        desc_galpao: cols[3]?.trim() || '',
+        cliente: cols[4]?.trim() || ''
+      };
+    }).filter(Boolean) as any[];
+
+    if (newData.length > 0) {
+      setTemplate(prev => ({ 
+        ...prev, 
+        externalData: newData,
+        externalDataImportedAt: new Date().toISOString()
+      }));
+      setExcelPaste('');
+      alert(`${newData.length} registros importados com sucesso!`);
+    } else {
+      alert('Nenhum dado válido encontrado. Certifique-se de copiar as colunas do Excel.');
+    }
+  };
 
   useEffect(() => {
     if (editId && editId !== "") {
@@ -38,7 +68,9 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
               signatureTitle: existing.signatureTitle || 'Assinatura do Responsável',
               customIdPlaceholder: existing.customIdPlaceholder || '',
               image: existing.image || '',
-              stages: existing.stages || []
+              stages: existing.stages || [],
+              externalData: existing.externalData || [],
+              externalDataImportedAt: existing.externalDataImportedAt
             });
           } else {
             alert("Template não encontrado.");
@@ -200,6 +232,45 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
         </div>
       </section>
 
+      <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-blue-100 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xl">📊</span>
+          <h3 className="text-lg font-black uppercase text-blue-900">Importar Dados do Excel (OS)</h3>
+        </div>
+        <p className="text-xs text-gray-500 font-bold">
+          Cole abaixo as colunas do Excel na ordem: <br/>
+          <span className="text-blue-600">Tipo de Programa | OS | Cód Galpão | Descrição Galpão | Cliente</span>
+        </p>
+        <textarea
+          className="w-full bg-gray-50 border-gray-100 rounded-xl p-4 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-500 h-32"
+          placeholder="Cole aqui os dados copiados do Excel..."
+          value={excelPaste}
+          onChange={e => setExcelPaste(e.target.value)}
+        />
+        <div className="flex justify-between items-center">
+          <button 
+            onClick={processExcelData}
+            className="bg-blue-600 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg"
+          >
+            Processar Dados
+          </button>
+          {template.externalData && template.externalData.length > 0 && (
+            <div className="text-right">
+              <p className="text-[10px] font-black text-green-600 uppercase">{template.externalData.length} Registros Carregados</p>
+              {template.externalDataImportedAt && (
+                <p className="text-[8px] font-bold text-gray-400 uppercase">Importado em: {new Date(template.externalDataImportedAt).toLocaleString('pt-BR')}</p>
+              )}
+              <button 
+                onClick={() => setTemplate(prev => ({ ...prev, externalData: [], externalDataImportedAt: undefined }))}
+                className="text-[9px] font-black text-red-500 uppercase underline"
+              >
+                Limpar Dados
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
       {template.stages.map((stage, sIdx) => (
         <div key={stage.id} className="bg-white rounded-[2rem] border-l-8 border-orange-600 overflow-hidden shadow-sm border border-gray-100">
           <div className="p-6 bg-orange-50/50 border-b flex justify-between items-center">
@@ -246,6 +317,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
                       <option value="MULTIPLE_CHOICE">Múltipla Escolha</option>
                       <option value="IMAGE">Somente Foto</option>
                       <option value="SIGNATURE">Assinatura</option>
+                      <option value="OS">Ordem de Serviço (OS)</option>
                     </select>
                   </div>
 
@@ -326,6 +398,9 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
                     )}
                     {(q.type === 'IMAGE' || q.type === 'DOCUMENT' || q.type === 'SIGNATURE') && (
                       <p className="text-[9px] text-gray-400 italic">Não disponível para este tipo de resposta.</p>
+                    )}
+                    {q.type === 'OS' && (
+                      <p className="text-[9px] text-blue-400 italic font-black uppercase tracking-widest">Será preenchido com as OS importadas do Excel.</p>
                     )}
                     {q.defaultValue && (
                       <button 

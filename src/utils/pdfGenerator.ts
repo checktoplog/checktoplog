@@ -44,6 +44,17 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
 
   let yPos = 95;
 
+  if (response.externalDataRow) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('DADOS DO CARREGAMENTO (OS)', 15, 92);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`OS: ${response.externalDataRow.os}`, 15, 98);
+    doc.text(`Programa: ${response.externalDataRow.tipo_programa}`, 15, 104);
+    doc.text(`Galpão: ${response.externalDataRow.cod_galpao} - ${response.externalDataRow.desc_galpao}`, 15, 110);
+    doc.text(`Cliente: ${response.externalDataRow.cliente}`, 15, 116);
+    yPos = 130;
+  }
+
   if (!template.stages || template.stages.length === 0) {
     doc.setFont('helvetica', 'italic');
     doc.text("Nenhuma etapa ou resposta encontrada para este checklist.", 15, yPos);

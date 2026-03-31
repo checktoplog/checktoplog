@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { ChecklistTemplate, ChecklistResponse, Stage, Question } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { ChecklistTemplate, ChecklistResponse, Stage, Question, ExternalDataRow } from '../types';
 import { supabaseService } from '../services/supabaseService';
 import { generateChecklistPDF } from '../utils/pdfGenerator';
 import { resizeImage } from '../utils/imageUtils';
@@ -236,6 +236,33 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   };
 
   useEffect(() => {
+    if (!dataLoadedRef.current) return;
+    const osNum = response.externalDataRow?.os;
+    if (!osNum) return;
+
+    let changed = false;
+    const newData = { ...response.data };
+
+    template.stages.forEach(stage => {
+      stage.questions.forEach(q => {
+        if (q.type === 'OS') {
+          const currentVal = newData[stage.id]?.[q.id]?.val;
+          if (currentVal !== osNum) {
+            if (!newData[stage.id]) newData[stage.id] = {};
+            if (!newData[stage.id][q.id]) newData[stage.id][q.id] = { val: null, imgs: [], docs: [], note: '' };
+            newData[stage.id][q.id] = { ...newData[stage.id][q.id], val: osNum };
+            changed = true;
+          }
+        }
+      });
+    });
+
+    if (changed) {
+      setResponse(prev => ({ ...prev, data: newData }));
+    }
+  }, [response.externalDataRow?.os, template.stages]);
+
+  useEffect(() => {
     if (response.status === 'COMPLETED' || !dataLoadedRef.current) return;
     
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -469,6 +496,24 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
         customData: updatedData
       });
 
+      // 4. REMOVE OS DO TEMPLATE (SE EXISTIR)
+      if (response.externalDataRow) {
+        setFinalizeProgress('Atualizando lista de OS...');
+        try {
+          const templates = await supabaseService.getTemplates();
+          const latestTemplate = templates.find(t => t.id === template.id);
+          if (latestTemplate && latestTemplate.externalData) {
+            const updatedExternalData = latestTemplate.externalData.filter(row => row.os !== response.externalDataRow?.os);
+            await supabaseService.saveTemplate({
+              ...latestTemplate,
+              externalData: updatedExternalData
+            });
+          }
+        } catch (templateErr) {
+          console.error("Erro ao remover OS do template:", templateErr);
+        }
+      }
+
       setLoading(false);
       onBack();
     } catch (err: any) {
@@ -479,8 +524,27 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   };
 
   const currentStage = template.stages[currentStageIdx];
-
   const currentQData = (qId: string) => getQData(response.data, currentStage.id, qId);
+
+  const handleOSSelect = (osNum: string) => {
+    const row = template.externalData?.find(r => r.os === osNum);
+    if (row) {
+      setResponse(prev => ({
+        ...prev,
+        customId: row.os,
+        externalDataRow: row
+      }));
+    } else {
+      setResponse(prev => ({
+        ...prev,
+        externalDataRow: undefined
+      }));
+    }
+  };
+
+  const hasOSQuestion = useMemo(() => {
+    return template.stages.some(s => s.questions.some(q => q.type === 'OS'));
+  }, [template.stages]);
 
   return (
     <div className="space-y-6 pb-32 animate-fadeIn max-w-4xl mx-auto px-2">
@@ -513,6 +577,39 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
         </div>
       </header>
 
+      {template.externalData && template.externalData.length > 0 && !hasOSQuestion && (
+        <section className="bg-white p-6 rounded-3xl shadow-sm border border-blue-100 space-y-4">
+          <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Selecionar OS do Carregamento</label>
+          <select 
+            className="w-full border-2 border-blue-50 rounded-2xl p-4 font-black uppercase outline-none focus:border-blue-500 bg-blue-50/30"
+            value={response.externalDataRow?.os || ''}
+            onChange={e => handleOSSelect(e.target.value)}
+          >
+            <option value="">Selecione uma OS...</option>
+            {template.externalData.map(row => (
+              <option key={row.os} value={row.os}>{row.os} - {row.cliente}</option>
+            ))}
+          </select>
+          
+          {response.externalDataRow && (
+            <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+              <div>
+                <p className="text-[8px] font-black text-blue-400 uppercase">Programa</p>
+                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.tipo_programa}</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-blue-400 uppercase">Galpão</p>
+                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.cod_galpao} - {response.externalDataRow.desc_galpao}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-[8px] font-black text-blue-400 uppercase">Cliente</p>
+                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.cliente}</p>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       <section className={`bg-white p-6 rounded-3xl shadow-sm border transition-all ${showErrors && !response.customId ? 'border-red-500 ring-2 ring-red-50' : 'border-orange-100'}`}>
         <label className="block text-[10px] font-black text-orange-600 uppercase tracking-widest mb-2">ID DO CHECKLIST (OBRIGATÓRIO)</label>
         <input type="text" className={`w-full border-2 rounded-2xl p-4 font-black uppercase outline-none focus:border-orange-500 transition-colors ${showErrors && !response.customId ? 'border-red-200 bg-red-50' : 'border-gray-50'}`} placeholder={template.customIdPlaceholder || "EX: VEÍCULO-01"} value={response.customId} onChange={e => setResponse({...response, customId: e.target.value.toUpperCase()})} />
@@ -540,6 +637,39 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                 {q.type === 'TEXT' && <textarea className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500" placeholder="Escreva aqui..." value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
                 {q.type === 'NUMBER' && <input type="number" className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500" value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
                 {q.type === 'DATE' && <input type="date" className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500" value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
+                
+                {q.type === 'OS' && (
+                  <div className="space-y-3">
+                    <select 
+                      className="w-full border-2 border-gray-100 rounded-2xl p-4 font-black uppercase outline-none focus:border-orange-500 bg-gray-50"
+                      value={data.val || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        updateQ(q.id, { val });
+                        handleOSSelect(val);
+                      }}
+                    >
+                      <option value="">Selecione uma OS...</option>
+                      {(template.externalData || []).map(row => (
+                        <option key={row.os} value={row.os}>{row.os} - {row.cliente}</option>
+                      ))}
+                    </select>
+                    {data.val && template.externalData?.find(r => r.os === data.val) && (
+                      <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 text-[10px] font-black uppercase text-blue-900 space-y-1">
+                        {(() => {
+                          const row = template.externalData.find(r => r.os === data.val);
+                          return row ? (
+                            <>
+                              <p><span className="text-blue-400">Programa:</span> {row.tipo_programa}</p>
+                              <p><span className="text-blue-400">Galpão:</span> {row.cod_galpao} - {row.desc_galpao}</p>
+                              <p><span className="text-blue-400">Cliente:</span> {row.cliente}</p>
+                            </>
+                          ) : null;
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {q.type === 'MULTIPLE_CHOICE' && (
                   <div className="flex flex-wrap gap-2">
