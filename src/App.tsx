@@ -10,7 +10,6 @@ import ChecklistSummary from './pages/ChecklistSummary.tsx';
 import UserManagement from './pages/UserManagement.tsx';
 import Reports from './pages/Reports.tsx';
 import BatchDownload from './pages/BatchDownload.tsx';
-import Dashboard from './pages/Dashboard.tsx';
 
 interface ErrorBoundaryProps {
   children?: React.ReactNode;
@@ -73,14 +72,14 @@ const GUEST_USER: User = {
   name: 'Administrador',
   email: 'admin@checktoplog.com',
   role: 'ADMIN',
-  allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
+  allowedScreens: ['templates', 'checklists', 'reports', 'batch_download', 'users'],
 };
 
 const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState(true);
   const [user, setUser] = useState<User | null>(GUEST_USER);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('templates');
 
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
   const [responses, setResponses] = useState<ChecklistResponse[]>([]);
@@ -215,8 +214,6 @@ const App: React.FC = () => {
     
     try {
       switch (currentPage) {
-        case 'dashboard':
-           return <Dashboard onNavigate={setCurrentPage} onNewTemplate={() => setEditTemplateId("")} templates={templates} responses={responses} />;
         case 'reports':
            return <Reports templates={templates} responses={responses} />;
         case 'batch_download':

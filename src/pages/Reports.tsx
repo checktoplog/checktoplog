@@ -10,7 +10,6 @@ interface TemplateStat {
   completed: number;
   draft: number;
   avgTimeMinutes: number;
-  complianceRate: number;
 }
 
 interface ReportsProps {
@@ -38,8 +37,6 @@ const Reports: React.FC<ReportsProps> = ({ templates, responses }) => {
       
       let totalEffectiveTimeMs = 0;
       let countTime = 0;
-      let totalYes = 0;
-      let totalQuestions = 0;
 
       completedList.forEach(r => {
         const stageTimes = r.stageTimeSpent || {};
@@ -49,17 +46,6 @@ const Reports: React.FC<ReportsProps> = ({ templates, responses }) => {
           totalEffectiveTimeMs += effectiveTimeForThisResponse;
           countTime++;
         }
-
-        if (r.data) {
-          for (const stageData of Object.values(r.data)) {
-            if (stageData && typeof stageData === 'object') {
-              for (const val of Object.values(stageData)) {
-                totalQuestions++;
-                if (val === 'Sim') totalYes++;
-              }
-            }
-          }
-        }
       });
 
       return {
@@ -68,8 +54,7 @@ const Reports: React.FC<ReportsProps> = ({ templates, responses }) => {
         total: tmplResponses.length,
         completed: completedList.length,
         draft: tmplResponses.length - completedList.length,
-        avgTimeMinutes: countTime > 0 ? Math.round((totalEffectiveTimeMs / countTime) / 1000 / 60) : 0,
-        complianceRate: totalQuestions > 0 ? Math.round((totalYes / totalQuestions) * 100) : 0
+        avgTimeMinutes: countTime > 0 ? Math.round((totalEffectiveTimeMs / countTime) / 1000 / 60) : 0
       };
     });
 
@@ -154,9 +139,6 @@ const Reports: React.FC<ReportsProps> = ({ templates, responses }) => {
   const avgTime = displayedStats.length > 0 
     ? Math.round(displayedStats.reduce((acc, curr) => acc + curr.avgTimeMinutes, 0) / (displayedStats.filter(s => s.avgTimeMinutes > 0).length || 1)) 
     : 0;
-  const avgCompliance = displayedStats.length > 0
-    ? Math.round(displayedStats.reduce((acc, curr) => acc + curr.complianceRate, 0) / (displayedStats.length || 1))
-    : 0;
 
   return (
     <div className="space-y-8 animate-fadeIn pb-24">
@@ -178,7 +160,7 @@ const Reports: React.FC<ReportsProps> = ({ templates, responses }) => {
           </div>
        </header>
 
-       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
            <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Inspeções</p>
                <p className="text-3xl font-black text-gray-900">{totalInspections}</p>
@@ -190,10 +172,6 @@ const Reports: React.FC<ReportsProps> = ({ templates, responses }) => {
            <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Finalizados</p>
                <p className="text-3xl font-black text-gray-900">{totalCompleted}</p>
-           </div>
-           <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-gray-100 border-b-8 border-green-500">
-               <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Qualidade</p>
-               <p className="text-3xl font-black text-green-600">{avgCompliance}%</p>
            </div>
        </div>
 

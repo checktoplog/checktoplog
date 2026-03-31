@@ -17,7 +17,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
   const [showQR, setShowQR] = useState(false);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Início', icon: '🏠' },
     { id: 'templates', label: 'Checklists', icon: '📋' },
     { id: 'checklists', label: 'Histórico', icon: '✅' },
     { id: 'reports', label: 'Relatórios', icon: '📊' },
