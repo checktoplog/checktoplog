@@ -1,25 +1,75 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabaseService } from '../services/supabaseService.ts';
 import { ChecklistTemplate, ChecklistResponse } from '../types.ts';
 
 interface DashboardProps {
   onNavigate: (page: string) => void;
   onNewTemplate: () => void;
+  templates: ChecklistTemplate[];
+  responses: ChecklistResponse[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onNewTemplate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onNewTemplate, templates, responses }) => {
   const [loading, setLoading] = useState(true);
   const [chartError, setChartError] = useState(false);
-  const [stats, setStats] = useState({
-    totalChecklists: 0,
-    completed: 0,
-    drafts: 0,
-    complianceRate: 0,
-    totalQuestions: 0,
-    totalYes: 0,
-    totalNo: 0
-  });
+
+  const stats = useMemo(() => {
+    const trendMap: Record<string, number> = {};
+    const last7DaysLabels: string[] = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toLocaleDateString('pt-BR');
+      last7DaysLabels.push(key);
+      trendMap[key] = 0;
+    }
+
+    let tYes = 0;
+    let tNo = 0;
+    let tQuestions = 0;
+    let completedCount = 0;
+    let draftCount = 0;
+
+    for (const res of responses) {
+      if (res.status === 'COMPLETED') {
+        completedCount++;
+        const dateKey = new Date(res.updatedAt).toLocaleDateString('pt-BR');
+        
+        if (res.data) {
+          for (const stageData of Object.values(res.data)) {
+            if (stageData && typeof stageData === 'object') {
+              for (const val of Object.values(stageData)) {
+                tQuestions++;
+                if (val === 'Sim') tYes++;
+                if (val === 'Não') {
+                  tNo++;
+                  if (trendMap.hasOwnProperty(dateKey)) {
+                    trendMap[dateKey]++;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        draftCount++;
+      }
+    }
+
+    return {
+      totalChecklists: responses.length,
+      completed: completedCount,
+      drafts: draftCount,
+      complianceRate: tQuestions > 0 ? Math.round((tYes / tQuestions) * 100) : 0,
+      totalQuestions: tQuestions,
+      totalYes: tYes,
+      totalNo: tNo,
+      last7DaysLabels,
+      trendMap
+    };
+  }, [responses]);
 
   const complianceChartRef = useRef<HTMLCanvasElement>(null);
   const trendChartRef = useRef<HTMLCanvasElement>(null);
@@ -36,81 +86,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onNewTemplate }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const fetchData = async () => {
+    const initCharts = async () => {
       try {
-        const [templates, responses] = await Promise.all([
-          supabaseService.getTemplates(),
-          supabaseService.getResponses()
-        ]);
-
-        if (!isMounted) return;
-
-        const trendMap: Record<string, number> = {};
-        const last7DaysLabels: string[] = [];
-        
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const key = d.toLocaleDateString('pt-BR');
-          last7DaysLabels.push(key);
-          trendMap[key] = 0;
-        }
-
-        let tYes = 0;
-        let tNo = 0;
-        let tQuestions = 0;
-
-        responses.forEach(res => {
-          if (res.status === 'COMPLETED') {
-            const dateKey = new Date(res.updatedAt).toLocaleDateString('pt-BR');
-            Object.values(res.data || {}).forEach((stageData: any) => {
-              Object.values(stageData || {}).forEach((val: any) => {
-                tQuestions++;
-                if (val === 'Sim') tYes++;
-                if (val === 'Não') {
-                  tNo++;
-                  if (trendMap.hasOwnProperty(dateKey)) {
-                    trendMap[dateKey]++;
-                  }
-                }
-              });
-            });
-          }
-        });
-
-        setStats({
-          totalChecklists: responses.length,
-          completed: responses.filter(r => r.status === 'COMPLETED').length,
-          drafts: responses.filter(r => r.status === 'DRAFT').length,
-          complianceRate: tQuestions > 0 ? Math.round((tYes / tQuestions) * 100) : 0,
-          totalQuestions: tQuestions,
-          totalYes: tYes,
-          totalNo: tNo
-        });
-
-        setLoading(false);
-
+        setLoading(true);
         const ChartLib = await waitForChartLib();
         if (ChartLib && isMounted) {
-          renderCharts(ChartLib, tYes, tNo, last7DaysLabels, trendMap);
+          renderCharts(ChartLib, stats.totalYes, stats.totalNo, stats.last7DaysLabels, stats.trendMap);
+          setLoading(false);
         } else if (isMounted) {
           setChartError(true);
+          setLoading(false);
         }
-
       } catch (error) {
-        console.error("Erro ao processar dashboard:", error);
+        console.error("Erro ao inicializar gráficos:", error);
         if (isMounted) setLoading(false);
       }
     };
 
-    fetchData();
+    initCharts();
 
     return () => {
       isMounted = false;
       if (chartsInstance.current.compliance) chartsInstance.current.compliance.destroy();
       if (chartsInstance.current.trend) chartsInstance.current.trend.destroy();
     };
-  }, []);
+  }, [stats]);
 
   const renderCharts = (Chart: any, yes: number, no: number, labels: string[], trendData: Record<string, number>) => {
     if (complianceChartRef.current) {

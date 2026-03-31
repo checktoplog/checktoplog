@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import QRCode from 'react-qr-code';
-import { isSupabaseConfigured } from '../supabaseClient';
+import { isSupabaseConfigured, isSupabaseBroken } from '../supabaseClient';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,13 +33,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
     return Array.isArray(user.allowedScreens) && user.allowedScreens.includes(item.id);
   });
 
+  const isOnline = isSupabaseConfigured && !isSupabaseBroken();
+
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-gray-50">
       {/* Mobile Top Bar */}
       <div className="md:hidden bg-orange-600 text-white p-4 flex justify-between items-center shadow-lg z-50 shrink-0">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-black tracking-tighter">CheckTopLog</h1>
-          <div className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} title={isSupabaseConfigured ? 'Online' : 'Offline'}></div>
+          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} title={isOnline ? 'Online' : 'Offline'}></div>
         </div>
         <button 
           onClick={() => setSidebarOpen(!sidebarOpen)} 
@@ -84,10 +86,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
 
           <div className="p-6 border-t bg-gray-50/50 space-y-4">
             {/* Sync Status */}
-            <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl border ${isSupabaseConfigured ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+            <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl border ${isOnline ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
               <span className="text-[8px] font-black uppercase tracking-widest">
-                {isSupabaseConfigured ? 'Sincronização Ativa' : 'Sincronização Inativa'}
+                {isOnline ? 'Sincronização Ativa' : 'Modo Offline (Local)'}
               </span>
             </div>
 

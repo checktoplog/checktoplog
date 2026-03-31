@@ -20,12 +20,11 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
     const fetchResponse = async () => {
       setLoading(true);
       try {
-        const responses = await supabaseService.getResponses();
-        const found = responses.find(r => r.id === responseId);
+        const found = await supabaseService.getResponseById(responseId);
         if (found) {
           setResponse(found);
         } else {
-          alert("Erro: Checklist não encontrado localmente.");
+          alert("Erro: Checklist não encontrado.");
           onBack();
         }
       } catch (err) {

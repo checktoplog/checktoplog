@@ -7,7 +7,8 @@ export const isSupabaseConfigured =
   !!supabaseUrl && 
   supabaseUrl.startsWith('https://') && 
   !!supabaseAnonKey && 
-  supabaseAnonKey.length > 20;
+  supabaseAnonKey.length > 20 &&
+  !supabaseUrl.includes('placeholder-project');
 
 let runtimeSupabaseBroken = false;
 export const markSupabaseAsBroken = () => {
@@ -16,6 +17,12 @@ export const markSupabaseAsBroken = () => {
 };
 export const isSupabaseBroken = () => runtimeSupabaseBroken;
 export const canUseSupabaseRuntime = () => isSupabaseConfigured && !runtimeSupabaseBroken;
+
+if (isSupabaseConfigured) {
+  console.log("Supabase Client Initialized with URL:", supabaseUrl);
+} else {
+  console.warn("Supabase Client using placeholders. Check environment variables.");
+}
 
 export const supabase = createClient(
   isSupabaseConfigured ? supabaseUrl : 'https://placeholder-project.supabase.co',

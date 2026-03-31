@@ -9,9 +9,10 @@ const checkSupabaseError = (error: any) => {
                        errorMessage.includes('api key') || 
                        error.code === 'PGRST301' ||
                        error.code === '401';
-  const isNetworkError = errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError');
+  const isNetworkError = errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('TypeError');
 
   if (isInvalidKey || isNetworkError) {
+    console.error("Supabase Connection Error Detected:", errorMessage);
     markSupabaseAsBroken();
     return true;
   }
@@ -152,7 +153,6 @@ export const supabaseService = {
   // Templates
   async getTemplates(): Promise<ChecklistTemplate[]> {
     if (!canUseSupabase()) {
-      console.warn('Supabase não configurado. Usando armazenamento local para templates.');
       return getLocal<ChecklistTemplate>(LOCAL_STORAGE_KEYS.TEMPLATES);
     }
     try {
@@ -162,12 +162,14 @@ export const supabaseService = {
         .order('updated_at', { ascending: false });
 
       if (error) {
-        if (checkSupabaseError(error)) throw error;
+        if (checkSupabaseError(error)) {
+          return getLocal<ChecklistTemplate>(LOCAL_STORAGE_KEYS.TEMPLATES);
+        }
         console.error('Error fetching templates:', error);
-        return [];
+        return getLocal<ChecklistTemplate>(LOCAL_STORAGE_KEYS.TEMPLATES);
       }
       
-      return (data || []).map(t => ({
+      const templates = (data || []).map(t => ({
         id: t.id,
         title: t.title,
         stages: t.stages,
@@ -175,9 +177,16 @@ export const supabaseService = {
         customIdPlaceholder: t.custom_id_placeholder,
         image: t.image_url
       }));
+
+      // Cache locally
+      localStorage.setItem(LOCAL_STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
+      return templates;
     } catch (err) {
+      if (checkSupabaseError(err)) {
+        return getLocal<ChecklistTemplate>(LOCAL_STORAGE_KEYS.TEMPLATES);
+      }
       console.error('Erro ao buscar templates:', err);
-      throw err;
+      return getLocal<ChecklistTemplate>(LOCAL_STORAGE_KEYS.TEMPLATES);
     }
   },
 
@@ -186,7 +195,7 @@ export const supabaseService = {
     saveLocal(LOCAL_STORAGE_KEYS.TEMPLATES, template);
 
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado no Vercel. Verifique se adicionou VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas configurações do projeto e fez um REDEPLOY.');
+      return;
     }
     try {
       const dbTemplate = {
@@ -204,20 +213,21 @@ export const supabaseService = {
         .upsert([dbTemplate]);
 
       if (error) {
-        if (checkSupabaseError(error)) throw error;
+        if (checkSupabaseError(error)) return;
         console.error('Error saving template:', error);
         if (error.code === '42P01') throw new Error('A tabela "templates" não existe no seu Supabase. Vá na aba Equipe e execute o script de configuração completo.');
         throw error;
       }
     } catch (err) {
+      if (checkSupabaseError(err)) return;
       console.error('Erro ao salvar template:', err);
       throw err;
     }
   },
 
   async deleteTemplate(id: string): Promise<void> {
+    deleteLocal(LOCAL_STORAGE_KEYS.TEMPLATES, id);
     if (!canUseSupabase()) {
-      deleteLocal(LOCAL_STORAGE_KEYS.TEMPLATES, id);
       return;
     }
     try {
@@ -227,11 +237,12 @@ export const supabaseService = {
         .eq('id', id);
 
       if (error) {
-        if (checkSupabaseError(error)) throw error;
+        if (checkSupabaseError(error)) return;
         console.error('Error deleting template:', error);
         throw error;
       }
     } catch (err) {
+      if (checkSupabaseError(err)) return;
       console.error('Erro ao deletar template:', err);
       throw err;
     }
@@ -249,12 +260,14 @@ export const supabaseService = {
         .order('updated_at', { ascending: false });
 
       if (error) {
-        if (checkSupabaseError(error)) throw error;
+        if (checkSupabaseError(error)) {
+          return getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
+        }
         console.error('Error fetching responses:', error);
-        return [];
+        return getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
       }
       
-      return (data || []).map(r => ({
+      const responses = (data || []).map(r => ({
         id: r.id,
         templateId: r.template_id,
         customId: r.custom_id,
@@ -267,9 +280,16 @@ export const supabaseService = {
         completedAt: r.completed_at,
         pdfUrl: r.pdf_url
       }));
+
+      // Cache locally
+      localStorage.setItem(LOCAL_STORAGE_KEYS.RESPONSES, JSON.stringify(responses));
+      return responses;
     } catch (err) {
+      if (checkSupabaseError(err)) {
+        return getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
+      }
       console.error('Erro ao buscar respostas:', err);
-      throw err;
+      return getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
     }
   },
 
@@ -315,7 +335,7 @@ export const supabaseService = {
     saveLocal(LOCAL_STORAGE_KEYS.RESPONSES, response);
 
     if (!canUseSupabase()) {
-      throw new Error('Supabase não configurado no Vercel. Verifique se adicionou VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas configurações do projeto e fez um REDEPLOY.');
+      return;
     }
     try {
       const dbResponse = {
@@ -337,20 +357,21 @@ export const supabaseService = {
         .upsert([dbResponse]);
 
       if (error) {
-        if (checkSupabaseError(error)) throw error;
+        if (checkSupabaseError(error)) return;
         console.error('Error saving response:', error);
         if (error.code === '42P01') throw new Error('A tabela "responses" não existe no seu Supabase. Vá na aba Equipe e execute o script de configuração completo.');
         throw error;
       }
     } catch (err) {
+      if (checkSupabaseError(err)) return;
       console.error('Erro ao salvar resposta:', err);
       throw err;
     }
   },
 
   async deleteResponse(id: string): Promise<void> {
+    deleteLocal(LOCAL_STORAGE_KEYS.RESPONSES, id);
     if (!canUseSupabase()) {
-      deleteLocal(LOCAL_STORAGE_KEYS.RESPONSES, id);
       return;
     }
     try {
@@ -360,11 +381,12 @@ export const supabaseService = {
         .eq('id', id);
 
       if (error) {
-        if (checkSupabaseError(error)) throw error;
+        if (checkSupabaseError(error)) return;
         console.error('Error deleting response:', error);
         throw error;
       }
     } catch (err) {
+      if (checkSupabaseError(err)) return;
       console.error('Erro ao deletar resposta:', err);
       throw err;
     }

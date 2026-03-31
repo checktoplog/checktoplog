@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Component, useMemo, useDeferredValue } from 'react';
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
 import { supabaseService } from './services/supabaseService.ts';
 import { supabase, canUseSupabaseRuntime, isSupabaseConfigured, isSupabaseBroken } from './supabaseClient.ts';
@@ -80,7 +80,6 @@ const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState(true);
   const [user, setUser] = useState<User | null>(GUEST_USER);
   const [loading, setLoading] = useState(false);
-  const [isBroken, setIsBroken] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
 
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
@@ -105,13 +104,16 @@ const App: React.FC = () => {
     }
   };
 
+  const [isBroken, setIsBroken] = useState(isSupabaseBroken());
+
   useEffect(() => {
-    if (currentPage === 'checklists') {
-      fetchResponses();
-    }
-  }, [currentPage]);
+    const handleBroken = () => setIsBroken(true);
+    window.addEventListener('supabase-broken', handleBroken);
+    return () => window.removeEventListener('supabase-broken', handleBroken);
+  }, []);
 
   const loadData = useCallback(async () => {
+    setLoading(true);
     try {
       const [t, r] = await Promise.all([
         supabaseService.getTemplates(),
@@ -119,14 +121,18 @@ const App: React.FC = () => {
       ]);
       setTemplates(t || []);
       setResponses(r || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro ao carregar dados:", err);
+      // Se falhar o fetch, o serviço já deve ter marcado como broken
+      // Não bloqueamos mais a UI aqui, o Layout mostrará o status offline
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadData();
-  }, [loadData, currentPage]);
+  }, [loadData]);
 
   const handleLogout = async () => {
     if (window.confirm('Deseja realmente limpar a sessão local?')) {
@@ -135,12 +141,19 @@ const App: React.FC = () => {
     }
   };
 
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
   const handleDeleteTemplate = async (id: string) => {
     if (window.confirm('Deseja realmente excluir este modelo? Todos os dados vinculados a ele podem ser afetados.')) {
+      // Optimistic update
+      const previousTemplates = [...templates];
+      setTemplates(templates.filter(t => t.id !== id));
+      
       try {
         await supabaseService.deleteTemplate(id);
-        await loadData();
+        // No need to reload everything, just keep the optimistic state
       } catch (err) {
+        setTemplates(previousTemplates);
         alert('Erro ao excluir modelo.');
       }
     }
@@ -148,54 +161,67 @@ const App: React.FC = () => {
 
   const handleDeleteResponse = async (id: string) => {
     if (window.confirm('Deseja realmente excluir este registro do histórico? Esta ação é irreversível.')) {
+      // Optimistic update
+      const previousResponses = [...responses];
+      setResponses(responses.filter(r => r.id !== id));
+      
       try {
         await supabaseService.deleteResponse(id);
-        await loadData();
+        // No need to reload everything
       } catch (err) {
+        setResponses(previousResponses);
         alert('Erro ao excluir registro.');
       }
     }
   };
 
   const handleDuplicateTemplate = async (template: ChecklistTemplate) => {
+    const newTemplate: ChecklistTemplate = {
+      ...template,
+      id: `tmpl_${Math.random().toString(36).substr(2, 9)}`,
+      title: `${template.title} (Cópia)`
+    };
+
+    // Optimistic update
+    setTemplates([newTemplate, ...templates]);
+
     try {
-      const newTemplate: ChecklistTemplate = {
-        ...template,
-        id: `tmpl_${Math.random().toString(36).substr(2, 9)}`,
-        title: `${template.title} (Cópia)`
-      };
       await supabaseService.saveTemplate(newTemplate);
-      await loadData();
     } catch (err) {
+      setTemplates(templates); // Revert
       alert('Erro ao duplicar modelo.');
     }
   };
 
+  const filteredResponses = useMemo(() => {
+    const term = deferredSearchTerm.toLowerCase();
+    return responses.filter(r => {
+      const t = templates.find(temp => temp.id === r.templateId);
+      const idMatch = r.customId?.toLowerCase().includes(term) || false;
+      const titleMatch = t?.title?.toLowerCase().includes(term) || false;
+      const termMatches = !term || idMatch || titleMatch;
+      let dateMatches = true;
+      if (filterDate) {
+        const resDate = new Date(r.updatedAt).toISOString().split('T')[0];
+        dateMatches = resDate === filterDate;
+      }
+      const templateMatches = !filterTemplateId || r.templateId === filterTemplateId;
+      return termMatches && dateMatches && templateMatches;
+    });
+  }, [responses, templates, deferredSearchTerm, filterDate, filterTemplateId]);
+
   const renderContent = () => {
+    // Removido o bloqueio total por isBroken para permitir modo offline
+    
     try {
       switch (currentPage) {
         case 'dashboard':
-           return <Dashboard onNavigate={setCurrentPage} onNewTemplate={() => setEditTemplateId("")} />;
+           return <Dashboard onNavigate={setCurrentPage} onNewTemplate={() => setEditTemplateId("")} templates={templates} responses={responses} />;
         case 'reports':
-           return <Reports />;
+           return <Reports templates={templates} responses={responses} />;
         case 'batch_download':
            return <BatchDownload />;
         case 'checklists':
-          const filteredResponses = responses.filter(r => {
-            const t = templates.find(temp => temp.id === r.templateId);
-            const term = searchTerm.toLowerCase();
-            const idMatch = r.customId?.toLowerCase().includes(term) || false;
-            const titleMatch = t?.title?.toLowerCase().includes(term) || false;
-            const termMatches = !term || idMatch || titleMatch;
-            let dateMatches = true;
-            if (filterDate) {
-              const resDate = new Date(r.updatedAt).toISOString().split('T')[0];
-              dateMatches = resDate === filterDate;
-            }
-            const templateMatches = !filterTemplateId || r.templateId === filterTemplateId;
-            return termMatches && dateMatches && templateMatches;
-          });
-
           return (
             <div className="space-y-8 animate-fadeIn pb-24">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

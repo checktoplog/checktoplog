@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabaseService } from '../services/supabaseService';
 import { ChecklistTemplate, ChecklistResponse } from '../types';
 
@@ -13,13 +13,69 @@ interface TemplateStat {
   complianceRate: number;
 }
 
-const Reports: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
-  const [responses, setResponses] = useState<ChecklistResponse[]>([]);
-  const [allStats, setAllStats] = useState<TemplateStat[]>([]);
+interface ReportsProps {
+  templates: ChecklistTemplate[];
+  responses: ChecklistResponse[];
+}
+
+const Reports: React.FC<ReportsProps> = ({ templates, responses }) => {
+  const [loading, setLoading] = useState(false);
   const [filterTemplateId, setFilterTemplateId] = useState<string>('all');
   
+  const allStats = useMemo(() => {
+    // Pre-group responses by templateId to avoid repeated filtering
+    const responsesByTemplate: Record<string, ChecklistResponse[]> = {};
+    responses.forEach(r => {
+      if (!responsesByTemplate[r.templateId]) {
+        responsesByTemplate[r.templateId] = [];
+      }
+      responsesByTemplate[r.templateId].push(r);
+    });
+
+    const computedStats: TemplateStat[] = templates.map(tmpl => {
+      const tmplResponses = responsesByTemplate[tmpl.id] || [];
+      const completedList = tmplResponses.filter(r => r.status === 'COMPLETED');
+      
+      let totalEffectiveTimeMs = 0;
+      let countTime = 0;
+      let totalYes = 0;
+      let totalQuestions = 0;
+
+      completedList.forEach(r => {
+        const stageTimes = r.stageTimeSpent || {};
+        const effectiveTimeForThisResponse = Object.values(stageTimes).reduce<number>((sum, val) => sum + (Number(val) || 0), 0);
+        
+        if (effectiveTimeForThisResponse > 0) {
+          totalEffectiveTimeMs += effectiveTimeForThisResponse;
+          countTime++;
+        }
+
+        if (r.data) {
+          for (const stageData of Object.values(r.data)) {
+            if (stageData && typeof stageData === 'object') {
+              for (const val of Object.values(stageData)) {
+                totalQuestions++;
+                if (val === 'Sim') totalYes++;
+              }
+            }
+          }
+        }
+      });
+
+      return {
+        id: tmpl.id,
+        name: tmpl.title,
+        total: tmplResponses.length,
+        completed: completedList.length,
+        draft: tmplResponses.length - completedList.length,
+        avgTimeMinutes: countTime > 0 ? Math.round((totalEffectiveTimeMs / countTime) / 1000 / 60) : 0,
+        complianceRate: totalQuestions > 0 ? Math.round((totalYes / totalQuestions) * 100) : 0
+      };
+    });
+
+    return computedStats.sort((a, b) => b.total - a.total);
+  }, [templates, responses]);
+
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<any>(null);
 
@@ -30,71 +86,6 @@ const Reports: React.FC = () => {
     await new Promise(r => setTimeout(r, 200)); 
     return waitForChartLib(retries - 1);
   };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      // Safety timeout
-      const timeout = setTimeout(() => {
-        setLoading(false);
-      }, 8000);
-
-      try {
-        const [tData, rData] = await Promise.all([
-          supabaseService.getTemplates(),
-          supabaseService.getResponses()
-        ]);
-        setTemplates(tData);
-        setResponses(rData);
-
-        const computedStats: TemplateStat[] = tData.map(tmpl => {
-          const tmplResponses = rData.filter(r => r.templateId === tmpl.id);
-          const completedList = tmplResponses.filter(r => r.status === 'COMPLETED');
-          
-          let totalEffectiveTimeMs = 0;
-          let countTime = 0;
-          let totalYes = 0;
-          let totalQuestions = 0;
-
-          completedList.forEach(r => {
-            const stageTimes = r.stageTimeSpent || {};
-            const effectiveTimeForThisResponse = Object.values(stageTimes).reduce<number>((sum, val) => sum + (Number(val) || 0), 0);
-            
-            if (effectiveTimeForThisResponse > 0) {
-              totalEffectiveTimeMs += effectiveTimeForThisResponse;
-              countTime++;
-            }
-
-            Object.values(r.data || {}).forEach((stageData: any) => {
-              Object.values(stageData || {}).forEach((val: any) => {
-                totalQuestions++;
-                if (val === 'Sim') totalYes++;
-              });
-            });
-          });
-
-          return {
-            id: tmpl.id,
-            name: tmpl.title,
-            total: tmplResponses.length,
-            completed: completedList.length,
-            draft: tmplResponses.filter(r => r.status === 'DRAFT').length,
-            avgTimeMinutes: countTime > 0 ? Math.round((totalEffectiveTimeMs / countTime) / 1000 / 60) : 0,
-            complianceRate: totalQuestions > 0 ? Math.round((totalYes / totalQuestions) * 100) : 0
-          };
-        });
-
-        computedStats.sort((a, b) => b.total - a.total);
-        setAllStats(computedStats);
-        setLoading(false);
-      } catch (err) {
-        console.error("Erro ao gerar relatórios:", err);
-        setLoading(false);
-      } finally {
-        clearTimeout(timeout);
-      }
-    };
-    fetchData();
-  }, []);
 
   useEffect(() => {
     const renderChart = async () => {
@@ -126,6 +117,7 @@ const Reports: React.FC = () => {
         });
       } else {
         const s = filteredStats[0];
+        if (!s) return;
         chartInstance.current = new Chart(chartRef.current, {
           type: 'doughnut',
           data: {
