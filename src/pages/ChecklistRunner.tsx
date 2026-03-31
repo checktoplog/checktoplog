@@ -139,8 +139,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   useEffect(() => {
     if (editId) {
       setLoading(true);
-      supabaseService.getResponses().then(responses => {
-        const existing = responses.find(r => r.id === editId);
+      supabaseService.getResponseById(editId).then(existing => {
         if (existing) {
           if (existing.status === 'DRAFT') {
             const today = new Date().toISOString().split('T')[0];

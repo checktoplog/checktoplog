@@ -25,29 +25,110 @@ const canUseSupabase = () => canUseSupabaseRuntime();
 const LOCAL_STORAGE_KEYS = {
   TEMPLATES: 'checktoplog_templates_local',
   RESPONSES: 'checktoplog_responses_local',
-  USERS: 'checktoplog_users_local'
+  USERS: 'checktoplog_users_local',
+  RESPONSE_DETAIL_PREFIX: 'checktoplog_resp_detail_'
+};
+
+const isQuotaExceeded = (e: any) => {
+  return (
+    e instanceof DOMException &&
+    (e.code === 22 ||
+      e.code === 1014 ||
+      e.name === 'QuotaExceededError' ||
+      e.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+  );
 };
 
 const getLocal = <T>(key: string): T[] => {
-  const stored = localStorage.getItem(key);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    console.error(`Error reading from localStorage key ${key}:`, e);
+    return [];
+  }
 };
 
 const saveLocal = <T extends { id: string }>(key: string, item: T) => {
   const items = getLocal<T>(key);
   const index = items.findIndex(i => i.id === item.id);
-  if (index >= 0) {
-    items[index] = item;
-  } else {
-    items.push(item);
+  
+  // For responses, we often want to save a summary in the main list
+  // to keep the list small and avoid quota issues.
+  let itemToSave = item;
+  if (key === LOCAL_STORAGE_KEYS.RESPONSES) {
+    const { data, ...summary } = item as any;
+    itemToSave = summary as any;
   }
-  localStorage.setItem(key, JSON.stringify(items));
+
+  if (index >= 0) {
+    items[index] = itemToSave;
+  } else {
+    items.push(itemToSave);
+  }
+  
+  const trySave = (data: any[]): boolean => {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  if (trySave(items)) return;
+
+  // If we reach here, quota was exceeded
+  console.warn(`Quota exceeded for ${key}. Attempting aggressive pruning...`);
+  
+  if (key === LOCAL_STORAGE_KEYS.RESPONSES) {
+    // Try keeping only the 20 most recent summaries (they are small)
+    if (items.length > 20 && trySave(items.slice(-20))) {
+      return;
+    }
+  }
+
+  // Fallback for other keys
+  if (items.length > 5 && trySave(items.slice(-5))) return;
+  if (trySave([itemToSave])) return;
+
+  console.error(`Critical failure: could not save any data to ${key} even with aggressive pruning.`);
+};
+
+const saveResponseDetail = (response: ChecklistResponse) => {
+  const key = `${LOCAL_STORAGE_KEYS.RESPONSE_DETAIL_PREFIX}${response.id}`;
+  try {
+    localStorage.setItem(key, JSON.stringify(response));
+  } catch (e) {
+    if (isQuotaExceeded(e)) {
+      console.warn("Could not cache full response detail due to quota.");
+      // We don't prune other details here to avoid deleting user data unexpectedly
+    }
+  }
+};
+
+const getResponseDetail = (id: string): ChecklistResponse | null => {
+  const key = `${LOCAL_STORAGE_KEYS.RESPONSE_DETAIL_PREFIX}${id}`;
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : null;
+  } catch (e) {
+    return null;
+  }
 };
 
 const deleteLocal = (key: string, id: string) => {
   const items = getLocal<{ id: string }>(key);
   const filtered = items.filter(i => i.id !== id);
-  localStorage.setItem(key, JSON.stringify(filtered));
+  try {
+    localStorage.setItem(key, JSON.stringify(filtered));
+  } catch (e) {
+    console.error(`Error deleting from localStorage key ${key}:`, e);
+  }
+
+  if (key === LOCAL_STORAGE_KEYS.RESPONSES) {
+    localStorage.removeItem(`${LOCAL_STORAGE_KEYS.RESPONSE_DETAIL_PREFIX}${id}`);
+  }
 };
 
 export const supabaseService = {
@@ -61,7 +142,11 @@ export const supabaseService = {
       role: 'ADMIN',
       allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
     };
-    localStorage.setItem('checklist_user', JSON.stringify(adminUser));
+    try {
+      localStorage.setItem('checklist_user', JSON.stringify(adminUser));
+    } catch (e) {
+      console.error("Error saving user to localStorage:", e);
+    }
     return adminUser;
   },
 
@@ -120,7 +205,11 @@ export const supabaseService = {
           allowedScreens: created.allowed_screens
         };
         
-        localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
+        try {
+          localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
+        } catch (e) {
+          console.error("Error saving user to localStorage:", e);
+        }
         return mappedUser;
       }
 
@@ -132,7 +221,11 @@ export const supabaseService = {
         allowedScreens: data.allowed_screens
       };
 
-      localStorage.setItem('checklist_user', JSON.stringify(mappedData));
+      try {
+        localStorage.setItem('checklist_user', JSON.stringify(mappedData));
+      } catch (e) {
+        console.error("Error saving user to localStorage:", e);
+      }
       return mappedData;
     } catch (err: any) {
       console.error('Erro ao sincronizar usuário:', err);
@@ -178,8 +271,14 @@ export const supabaseService = {
         image: t.image_url
       }));
 
-      // Cache locally
-      localStorage.setItem(LOCAL_STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
+      // Cache locally with quota protection
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
+      } catch (e) {
+        if (isQuotaExceeded(e)) {
+          console.warn("Template cache exceeded quota, skipping local storage.");
+        }
+      }
       return templates;
     } catch (err) {
       if (checkSupabaseError(err)) {
@@ -281,8 +380,27 @@ export const supabaseService = {
         pdfUrl: r.pdf_url
       }));
 
-      // Cache locally
-      localStorage.setItem(LOCAL_STORAGE_KEYS.RESPONSES, JSON.stringify(responses));
+      // Cache locally with metadata-only summaries to avoid quota issues
+      try {
+        const summaries = responses.map(r => {
+          const { data, ...summary } = r as any;
+          return summary;
+        });
+        localStorage.setItem(LOCAL_STORAGE_KEYS.RESPONSES, JSON.stringify(summaries));
+      } catch (e) {
+        if (isQuotaExceeded(e)) {
+          console.warn("Response list cache exceeded quota, keeping only most recent summaries.");
+          try {
+            const summaries = responses.slice(0, 20).map(r => {
+              const { data, ...summary } = r as any;
+              return summary;
+            });
+            localStorage.setItem(LOCAL_STORAGE_KEYS.RESPONSES, JSON.stringify(summaries));
+          } catch (e2) {
+            console.error("Failed to save even pruned response summary cache.");
+          }
+        }
+      }
       return responses;
     } catch (err) {
       if (checkSupabaseError(err)) {
@@ -295,6 +413,11 @@ export const supabaseService = {
 
   async getResponseById(id: string): Promise<ChecklistResponse | null> {
     if (!canUseSupabase()) {
+      // Check specific detail cache first
+      const detail = getResponseDetail(id);
+      if (detail) return detail;
+
+      // Fallback to list (which might only have metadata now)
       const items = getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
       return items.find(i => i.id === id) || null;
     }
@@ -308,10 +431,12 @@ export const supabaseService = {
       if (error || !r) {
         if (checkSupabaseError(error)) throw error;
         console.error('Error fetching response:', error);
-        return null;
+        
+        // Try local detail cache if server fails
+        return getResponseDetail(id);
       }
       
-      return {
+      const response: ChecklistResponse = {
         id: r.id,
         templateId: r.template_id,
         customId: r.custom_id,
@@ -324,14 +449,23 @@ export const supabaseService = {
         completedAt: r.completed_at,
         pdfUrl: r.pdf_url
       };
+
+      // Cache full detail locally
+      saveResponseDetail(response);
+
+      return response;
     } catch (err) {
       console.error('Erro ao buscar resposta por ID:', err);
-      throw err;
+      // Try local detail cache as fallback
+      return getResponseDetail(id);
     }
   },
 
   async saveResponse(response: ChecklistResponse): Promise<void> {
-    // Always try to save locally as a backup
+    // 1. Save full detail in its own key
+    saveResponseDetail(response);
+    
+    // 2. Save summary in the main list
     saveLocal(LOCAL_STORAGE_KEYS.RESPONSES, response);
 
     if (!canUseSupabase()) {
