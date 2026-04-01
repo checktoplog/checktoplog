@@ -155,6 +155,16 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
     });
   };
 
+  const removeExternalDataRow = (idx: number) => {
+    if (window.confirm('Deseja excluir esta linha de OS?')) {
+      setTemplate(prev => {
+        const newData = [...(prev.externalData || [])];
+        newData.splice(idx, 1);
+        return { ...prev, externalData: newData };
+      });
+    }
+  };
+
   const save = async () => {
     if (!template.title.trim()) return alert('Defina um título.');
     setSaving(true);
@@ -257,20 +267,65 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
             Processar Dados
           </button>
           {template.externalData && template.externalData.length > 0 && (
-            <div className="text-right">
-              <p className="text-[10px] font-black text-green-600 uppercase">{template.externalData.length} Registros Carregados</p>
-              {template.externalDataImportedAt && (
-                <p className="text-[8px] font-bold text-gray-400 uppercase">Importado em: {new Date(template.externalDataImportedAt).toLocaleString('pt-BR')}</p>
-              )}
+            <div className="text-right flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-[10px] font-black text-green-600 uppercase">{template.externalData.length} Registros Carregados</p>
+                {template.externalDataImportedAt && (
+                  <p className="text-[8px] font-bold text-gray-400 uppercase">Importado em: {new Date(template.externalDataImportedAt).toLocaleString('pt-BR')}</p>
+                )}
+              </div>
               <button 
-                onClick={() => setTemplate(prev => ({ ...prev, externalData: [], externalDataImportedAt: undefined }))}
-                className="text-[9px] font-black text-red-500 uppercase underline"
+                onClick={() => {
+                  if(window.confirm('Deseja limpar TODOS os dados de OS?')) {
+                    setTemplate(prev => ({ ...prev, externalData: [], externalDataImportedAt: undefined }));
+                  }
+                }}
+                className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-500 hover:text-white transition-all"
+                title="Limpar Tudo"
               >
-                Limpar Dados
+                <span className="text-xs">🗑️</span>
               </button>
             </div>
           )}
         </div>
+
+        {template.externalData && template.externalData.length > 0 && (
+          <div className="mt-6 border border-blue-100 rounded-2xl overflow-hidden bg-gray-50">
+            <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-200">
+              <table className="w-full text-[10px] text-left border-collapse">
+                <thead className="sticky top-0 bg-blue-50 z-10">
+                  <tr className="border-b border-blue-100">
+                    <th className="p-3 font-black uppercase text-blue-900">Tipo</th>
+                    <th className="p-3 font-black uppercase text-blue-900">OS</th>
+                    <th className="p-3 font-black uppercase text-blue-900">Cód Galpão</th>
+                    <th className="p-3 font-black uppercase text-blue-900">Descrição</th>
+                    <th className="p-3 font-black uppercase text-blue-900">Cliente</th>
+                    <th className="p-3 font-black uppercase text-blue-900 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {template.externalData.map((row: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-white transition-colors group">
+                      <td className="p-3 font-medium text-gray-600">{row.tipo_programa}</td>
+                      <td className="p-3 font-black text-blue-600">{row.os}</td>
+                      <td className="p-3 font-medium text-gray-500">{row.cod_galpao}</td>
+                      <td className="p-3 font-medium text-gray-500 truncate max-w-[150px]" title={row.desc_galpao}>{row.desc_galpao}</td>
+                      <td className="p-3 font-medium text-gray-500 truncate max-w-[150px]" title={row.cliente}>{row.cliente}</td>
+                      <td className="p-3">
+                        <button 
+                          onClick={() => removeExternalDataRow(idx)}
+                          className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </section>
 
       {template.stages.map((stage, sIdx) => (

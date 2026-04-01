@@ -267,7 +267,7 @@ ALTER TABLE templates ADD COLUMN IF NOT EXISTS external_data_imported_at timesta
 ALTER TABLE responses ADD COLUMN IF NOT EXISTS external_data_row jsonb;`}
             </pre>
             <p className="text-red-600 text-[9px] font-black uppercase tracking-tighter">
-              Copie o código acima, vá no Supabase -> SQL Editor -> New Query, cole e clique em RUN.
+              Copie o código acima, vá no Supabase {"->"} SQL Editor {"->"} New Query, cole e clique em RUN.
             </p>
           </div>
 
