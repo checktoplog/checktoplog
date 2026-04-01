@@ -253,6 +253,24 @@ DICA: Se você configurou no Vercel agora, você PRECISA ir em 'Deployments' e c
             </div>
           )}
 
+          <div className="bg-red-50 border-2 border-red-200 p-6 rounded-[2rem] mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">Correção de Erro: Colunas Faltando</h3>
+            </div>
+            <p className="text-red-700 text-xs font-bold mb-4 leading-relaxed uppercase tracking-widest">
+              Se você recebeu o erro "Could not find the 'external_data' column", execute o script abaixo no SQL Editor do Supabase para atualizar seu banco de dados:
+            </p>
+            <pre className="bg-white p-4 rounded-xl text-[10px] font-mono text-gray-800 overflow-x-auto border border-red-100 mb-4 select-all">
+{`ALTER TABLE templates ADD COLUMN IF NOT EXISTS external_data jsonb DEFAULT '[]';
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS external_data_imported_at timestamp with time zone;
+ALTER TABLE responses ADD COLUMN IF NOT EXISTS external_data_row jsonb;`}
+            </pre>
+            <p className="text-red-600 text-[9px] font-black uppercase tracking-tighter">
+              Copie o código acima, vá no Supabase -> SQL Editor -> New Query, cole e clique em RUN.
+            </p>
+          </div>
+
           <p className={`${tableError ? 'text-red-700' : 'text-blue-700'} text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-4`}>
             {tableError ? 'Para corrigir, execute o comando abaixo no SQL Editor do seu Supabase:' : 'Certifique-se de que todas as tabelas existem no seu Supabase. Execute o comando abaixo no SQL Editor do Supabase:'}
           </p>
