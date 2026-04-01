@@ -137,6 +137,13 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   }, [response.status]);
 
   useEffect(() => {
+    if (template) {
+      console.log("ChecklistRunner: Template carregado:", template.title);
+      console.log("ChecklistRunner: Dados Externos (OS):", template.externalData?.length || 0, "registros");
+    }
+  }, [template]);
+
+  useEffect(() => {
     if (editId) {
       setLoading(true);
       supabaseService.getResponseById(editId).then(existing => {
@@ -267,13 +274,15 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      persistData().catch(() => {});
+      persistData().catch((err) => {
+        console.error("Auto-save failed:", err);
+      });
     }, 3000);
 
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [response.data, response.customId, currentStageIdx]);
+  }, [response.data, response.customId, response.externalDataRow, currentStageIdx]);
 
   const getQData = (data: any, stageId: string, qId: string) => {
     const d = data[stageId]?.[qId];

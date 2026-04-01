@@ -106,6 +106,33 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
+          {response.externalDataRow && (
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 space-y-4">
+              <div className="flex items-center gap-2 border-b pb-3">
+                <span className="text-orange-600">📋</span>
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Detalhes da Ordem de Serviço</h3>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">OS</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.os}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cliente</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cliente}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Galpão</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cod_galpao} - {response.externalDataRow.desc_galpao}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tipo Programa</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.tipo_programa}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {template.stages.map((stage, sIdx) => (
             <div key={stage.id} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-5 bg-orange-50/50 border-b flex items-center gap-4">
@@ -142,6 +169,22 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
                             {qData.imgs.map((img: string, i: number) => (
                               <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-100 cursor-pointer shadow-sm hover:scale-105 transition-transform" onClick={() => setPreviewImage(img)}>
                                 <img src={img} className="w-full h-full object-cover" alt={`Evidência ${i+1}`} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {qData.docs && qData.docs.length > 0 && (
+                        <div className="space-y-2">
+                           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Documentos Anexados:</p>
+                           <div className="space-y-2">
+                            {qData.docs.map((doc: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                <span className="text-[10px] font-bold text-gray-600 truncate max-w-[200px]">📄 {doc.name}</span>
+                                {doc.url && (
+                                  <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-orange-600 uppercase hover:underline">Baixar</a>
+                                )}
                               </div>
                             ))}
                           </div>

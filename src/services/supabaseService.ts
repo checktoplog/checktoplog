@@ -12,7 +12,7 @@ const checkSupabaseError = (error: any) => {
   const isNetworkError = errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('TypeError');
 
   if (isInvalidKey || isNetworkError) {
-    console.error("Supabase Connection Error Detected:", errorMessage);
+    console.warn("Conexão com Supabase indisponível. O aplicativo continuará funcionando em modo offline (armazenamento local).", errorMessage);
     markSupabaseAsBroken();
     return true;
   }
@@ -268,7 +268,9 @@ export const supabaseService = {
         stages: t.stages,
         signatureTitle: t.signature_title,
         customIdPlaceholder: t.custom_id_placeholder,
-        image: t.image_url
+        image: t.image_url,
+        externalData: t.external_data,
+        externalDataImportedAt: t.external_data_imported_at
       }));
 
       // Cache locally with quota protection
@@ -297,6 +299,7 @@ export const supabaseService = {
       return;
     }
     try {
+      console.log("Salvando modelo no Supabase...", template.id);
       const dbTemplate = {
         id: template.id,
         title: template.title,
@@ -304,6 +307,8 @@ export const supabaseService = {
         signature_title: template.signatureTitle,
         custom_id_placeholder: template.customIdPlaceholder,
         image_url: template.image,
+        external_data: template.externalData,
+        external_data_imported_at: template.externalDataImportedAt,
         updated_at: new Date().toISOString()
       };
 
@@ -313,13 +318,15 @@ export const supabaseService = {
 
       if (error) {
         if (checkSupabaseError(error)) return;
-        console.error('Error saving template:', error);
+        console.error('Erro Supabase ao salvar modelo:', error);
         if (error.code === '42P01') throw new Error('A tabela "templates" não existe no seu Supabase. Vá na aba Equipe e execute o script de configuração completo.');
+        if (error.code === '42703') throw new Error('Colunas ausentes na tabela "templates". Execute o script SQL atualizado na aba Equipe.');
         throw error;
       }
+      console.log("Modelo salvo com sucesso no Supabase.");
     } catch (err) {
       if (checkSupabaseError(err)) return;
-      console.error('Erro ao salvar template:', err);
+      console.error('Erro crítico ao salvar template:', err);
       throw err;
     }
   },
@@ -374,6 +381,7 @@ export const supabaseService = {
         currentStageId: r.current_stage_id,
         data: r.data,
         stageTimeSpent: r.stage_time_spent,
+        externalDataRow: r.external_data_row,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
         completedAt: r.completed_at,
@@ -444,6 +452,7 @@ export const supabaseService = {
         currentStageId: r.current_stage_id,
         data: r.data,
         stageTimeSpent: r.stage_time_spent,
+        externalDataRow: r.external_data_row,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
         completedAt: r.completed_at,
@@ -472,6 +481,7 @@ export const supabaseService = {
       return;
     }
     try {
+      console.log("Salvando resposta no Supabase...", response.id);
       const dbResponse = {
         id: response.id,
         template_id: response.templateId,
@@ -480,6 +490,7 @@ export const supabaseService = {
         current_stage_id: response.currentStageId,
         data: response.data,
         stage_time_spent: response.stageTimeSpent,
+        external_data_row: response.externalDataRow,
         created_at: response.createdAt,
         updated_at: new Date().toISOString(),
         completed_at: response.completedAt,
@@ -492,13 +503,15 @@ export const supabaseService = {
 
       if (error) {
         if (checkSupabaseError(error)) return;
-        console.error('Error saving response:', error);
+        console.error('Erro Supabase ao salvar resposta:', error);
         if (error.code === '42P01') throw new Error('A tabela "responses" não existe no seu Supabase. Vá na aba Equipe e execute o script de configuração completo.');
+        if (error.code === '42703') throw new Error('Colunas ausentes na tabela "responses". Execute o script SQL atualizado na aba Equipe.');
         throw error;
       }
+      console.log("Resposta salva com sucesso no Supabase.");
     } catch (err) {
       if (checkSupabaseError(err)) return;
-      console.error('Erro ao salvar resposta:', err);
+      console.error('Erro crítico ao salvar resposta:', err);
       throw err;
     }
   },

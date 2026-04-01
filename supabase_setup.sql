@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS public.templates (
   signature_title TEXT DEFAULT 'Assinatura',
   custom_id_placeholder TEXT,
   image_url TEXT, 
+  external_data JSONB DEFAULT '[]'::jsonb,
+  external_data_imported_at TIMESTAMP WITH TIME ZONE,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -40,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.responses (
   current_stage_id TEXT,
   data JSONB NOT NULL DEFAULT '{}'::jsonB,
   stage_time_spent JSONB DEFAULT '{}'::jsonB,
+  external_data_row JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   completed_at TIMESTAMP WITH TIME ZONE,

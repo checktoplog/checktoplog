@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import QRCode from 'react-qr-code';
-import { isSupabaseConfigured, isSupabaseBroken } from '../supabaseClient';
+import { isSupabaseConfigured, isSupabaseBroken, resetSupabaseBroken } from '../supabaseClient';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -42,12 +42,22 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
           <h1 className="text-lg font-black tracking-tighter">CheckTopLog</h1>
           <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} title={isOnline ? 'Online' : 'Offline'}></div>
         </div>
-        <button 
-          onClick={() => setSidebarOpen(!sidebarOpen)} 
-          className="w-10 h-10 flex items-center justify-center bg-white/20 rounded-xl active:scale-90 transition-transform text-xl"
-        >
-          {sidebarOpen ? '✕' : '☰'}
-        </button>
+        <div className="flex items-center gap-2">
+          {!isOnline && (
+            <button 
+              onClick={() => resetSupabaseBroken()}
+              className="bg-white/20 p-2 rounded-lg text-[8px] font-black uppercase tracking-widest"
+            >
+              Reconectar
+            </button>
+          )}
+          <button 
+            onClick={() => setSidebarOpen(!sidebarOpen)} 
+            className="w-10 h-10 flex items-center justify-center bg-white/20 rounded-xl active:scale-90 transition-transform text-xl"
+          >
+            {sidebarOpen ? '✕' : '☰'}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar - Desktop & Mobile */}
@@ -85,11 +95,21 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, 
 
           <div className="p-6 border-t bg-gray-50/50 space-y-4">
             {/* Sync Status */}
-            <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl border ${isOnline ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-              <span className="text-[8px] font-black uppercase tracking-widest">
-                {isOnline ? 'Sincronização Ativa' : 'Modo Offline (Local)'}
-              </span>
+            <div className={`flex items-center justify-between px-3 py-2 rounded-xl border ${isOnline ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+              <div className="flex items-center space-x-2">
+                <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                <span className="text-[8px] font-black uppercase tracking-widest">
+                  {isOnline ? 'Sincronização Ativa' : 'Modo Offline (Local)'}
+                </span>
+              </div>
+              {!isOnline && (
+                <button 
+                  onClick={() => resetSupabaseBroken()}
+                  className="text-[8px] font-black uppercase tracking-widest bg-white/50 px-2 py-1 rounded-lg hover:bg-white transition-colors"
+                >
+                  🔄
+                </button>
+              )}
             </div>
 
             <button 

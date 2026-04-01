@@ -16,6 +16,10 @@ export const markSupabaseAsBroken = () => {
   window.dispatchEvent(new CustomEvent('supabase-broken'));
 };
 export const isSupabaseBroken = () => runtimeSupabaseBroken;
+export const resetSupabaseBroken = () => {
+  runtimeSupabaseBroken = false;
+  window.dispatchEvent(new CustomEvent('supabase-retry'));
+};
 export const canUseSupabaseRuntime = () => isSupabaseConfigured && !runtimeSupabaseBroken;
 
 if (isSupabaseConfigured) {

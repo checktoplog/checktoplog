@@ -277,6 +277,8 @@ create table if not exists templates (
   signature_title text,
   custom_id_placeholder text,
   image_url text,
+  external_data jsonb default '[]',
+  external_data_imported_at timestamp with time zone,
   updated_at timestamp with time zone default now()
 );
 
@@ -289,6 +291,7 @@ create table if not exists responses (
   current_stage_id text,
   data jsonb not null default '{}',
   stage_time_spent jsonb default '{}',
+  external_data_row jsonb,
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now(),
   completed_at timestamp with time zone,

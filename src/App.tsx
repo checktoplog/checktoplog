@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, Component, useMemo, useDeferredValue } from 'react';
 import { User, ChecklistTemplate, ChecklistResponse } from './types.ts';
 import { supabaseService } from './services/supabaseService.ts';
-import { supabase, canUseSupabaseRuntime, isSupabaseConfigured, isSupabaseBroken } from './supabaseClient.ts';
+import { supabase, canUseSupabaseRuntime, isSupabaseConfigured, isSupabaseBroken, resetSupabaseBroken } from './supabaseClient.ts';
 import Layout from './components/Layout.tsx';
 import TemplateEditor from './pages/TemplateEditor.tsx';
 import ChecklistRunner from './pages/ChecklistRunner.tsx';
@@ -105,12 +105,6 @@ const App: React.FC = () => {
 
   const [isBroken, setIsBroken] = useState(isSupabaseBroken());
 
-  useEffect(() => {
-    const handleBroken = () => setIsBroken(true);
-    window.addEventListener('supabase-broken', handleBroken);
-    return () => window.removeEventListener('supabase-broken', handleBroken);
-  }, []);
-
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -128,6 +122,20 @@ const App: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const handleBroken = () => setIsBroken(true);
+    const handleRetry = () => {
+      setIsBroken(false);
+      loadData();
+    };
+    window.addEventListener('supabase-broken', handleBroken);
+    window.addEventListener('supabase-retry', handleRetry);
+    return () => {
+      window.removeEventListener('supabase-broken', handleBroken);
+      window.removeEventListener('supabase-retry', handleRetry);
+    };
+  }, [loadData]);
 
   useEffect(() => {
     loadData();

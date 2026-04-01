@@ -158,6 +158,8 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
   const save = async () => {
     if (!template.title.trim()) return alert('Defina um título.');
     setSaving(true);
+    console.log("TemplateEditor: Salvando modelo...", template.title);
+    console.log("TemplateEditor: Dados Externos para salvar:", template.externalData?.length || 0, "registros");
     try {
       await supabaseService.saveTemplate(template);
       onBack();
