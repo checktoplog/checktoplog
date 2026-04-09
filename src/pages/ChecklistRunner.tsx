@@ -491,6 +491,30 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           const pdfPath = `report_${response.id}_${Date.now()}.pdf`;
           const url = await supabaseService.uploadFile('responses', pdfPath, pdfBlob);
           finalPdfUrl = url || '';
+
+          // --- OneDrive Upload ---
+          try {
+            const reader = new FileReader();
+            reader.readAsDataURL(pdfBlob);
+            reader.onloadend = async () => {
+              const base64data = (reader.result as string).split(',')[1];
+              const d = new Date(response.updatedAt);
+              const dateStr = d.toISOString().split('T')[0];
+              const filename = `${response.customId || 'REG'}_${template.title}_${dateStr}`.replace(/[^a-z0-9_-]/gi, '_') + '.pdf';
+
+              setFinalizeProgress('Sincronizando com OneDrive...');
+              await fetch('/api/onedrive/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  fileName: filename,
+                  fileContent: base64data
+                })
+              });
+            };
+          } catch (oneDriveErr) {
+            console.error("Erro ao enviar para OneDrive:", oneDriveErr);
+          }
         }
       } catch (pdfErr) {
         console.warn("PDF não gerado ou erro no upload:", pdfErr);

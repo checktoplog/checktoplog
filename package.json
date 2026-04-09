@@ -4,17 +4,22 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
     "@supabase/supabase-js": "^2.39.7",
     "@tailwindcss/vite": "^4.2.1",
+    "@types/axios": "^0.9.36",
+    "@types/dotenv": "^6.1.1",
+    "axios": "^1.15.0",
     "clsx": "^2.1.1",
     "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "google-auth-library": "^10.6.1",
     "lucide-react": "^0.576.0",

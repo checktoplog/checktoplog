@@ -9,6 +9,34 @@ const UserManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMsConnected, setIsMsConnected] = useState(false);
+
+  useEffect(() => {
+    // Check if connected (simple check for cookie presence via API or just state)
+    // For now, we'll assume not connected unless the session is active
+  }, []);
+
+  const handleMsConnect = async () => {
+    try {
+      const response = await fetch('/api/auth/microsoft/url');
+      const { url } = await response.json();
+      
+      const authWindow = window.open(url, 'ms_auth', 'width=600,height=700');
+      
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'MS_AUTH_SUCCESS') {
+          setIsMsConnected(true);
+          alert('OneDrive conectado com sucesso!');
+          window.removeEventListener('message', handleMessage);
+        }
+      };
+      
+      window.addEventListener('message', handleMessage);
+    } catch (error) {
+      console.error('Error connecting to Microsoft:', error);
+      alert('Erro ao conectar com OneDrive.');
+    }
+  };
 
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
@@ -374,6 +402,28 @@ create policy "Acesso Público Responses" on responses for all using (true) with
             Depois disso, você poderá editar as permissões dele nesta tela.
           </p>
         </div>
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] shadow-xl border border-blue-100 p-8 space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Integração OneDrive</h3>
+            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Sincronização automática de PDFs para a pasta compartilhada</p>
+          </div>
+          <button 
+            onClick={handleMsConnect}
+            className={`w-full md:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg ${isMsConnected ? 'bg-green-100 text-green-700 border-2 border-green-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+          >
+            {isMsConnected ? '✓ OneDrive Conectado' : '🔗 Conectar OneDrive'}
+          </button>
+        </div>
+        {isMsConnected && (
+          <div className="p-4 bg-green-50 rounded-2xl border border-green-100">
+            <p className="text-[10px] font-bold text-green-700 uppercase tracking-widest">
+              ✅ Todo checklist finalizado será enviado automaticamente para a pasta configurada.
+            </p>
+          </div>
+        )}
       </div>
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
