@@ -19,10 +19,19 @@ const UserManagement: React.FC = () => {
   const handleMsConnect = async () => {
     try {
       const response = await fetch('/api/auth/microsoft/url');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro do servidor: ${response.status}`);
+      }
       const { url } = await response.json();
       
       const authWindow = window.open(url, 'ms_auth', 'width=600,height=700');
       
+      if (!authWindow) {
+        alert('O popup foi bloqueado pelo navegador. Por favor, permita popups para este site.');
+        return;
+      }
+
       const handleMessage = (event: MessageEvent) => {
         if (event.data?.type === 'MS_AUTH_SUCCESS') {
           setIsMsConnected(true);
@@ -32,9 +41,9 @@ const UserManagement: React.FC = () => {
       };
       
       window.addEventListener('message', handleMessage);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting to Microsoft:', error);
-      alert('Erro ao conectar com OneDrive.');
+      alert(`Erro ao conectar com OneDrive: ${error.message}`);
     }
   };
 
