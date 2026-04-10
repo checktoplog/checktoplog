@@ -650,12 +650,20 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           {response.externalDataRow && (
             <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
               <div>
+                <p className="text-[8px] font-black text-blue-400 uppercase">Doca</p>
+                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.doca || '---'}</p>
+              </div>
+              <div>
                 <p className="text-[8px] font-black text-blue-400 uppercase">Programa</p>
                 <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.tipo_programa}</p>
               </div>
               <div>
-                <p className="text-[8px] font-black text-blue-400 uppercase">Galpão</p>
-                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.cod_galpao} - {response.externalDataRow.desc_galpao}</p>
+                <p className="text-[8px] font-black text-blue-400 uppercase">Veículo</p>
+                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.veiculo || '---'}</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-blue-400 uppercase">Produto</p>
+                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.cod_produto || ''} {response.externalDataRow.desc_produto || ''}</p>
               </div>
               <div className="col-span-2">
                 <p className="text-[8px] font-black text-blue-400 uppercase">Cliente</p>

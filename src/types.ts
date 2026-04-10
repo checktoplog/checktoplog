@@ -32,11 +32,17 @@ export interface Stage {
 }
 
 export interface ExternalDataRow {
+  doca?: string;
   tipo_programa: string;
   os: string;
-  cod_galpao: string;
-  desc_galpao: string;
+  veiculo?: string;
+  data_inicio?: string;
+  data_final?: string;
+  cod_produto?: string;
+  desc_produto?: string;
   cliente: string;
+  cod_galpao?: string;
+  desc_galpao?: string;
 }
 
 export interface ChecklistTemplate {

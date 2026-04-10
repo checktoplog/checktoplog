@@ -31,13 +31,17 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
     const lines = excelPaste.trim().split('\n');
     const newData = lines.map(line => {
       const cols = line.split('\t'); // Excel usually pastes as TSV
-      if (cols.length < 2) return null;
+      if (cols.length < 3) return null; // At least Doca, Tipo, OS
       return {
-        tipo_programa: cols[0]?.trim() || '',
-        os: cols[1]?.trim() || '',
-        cod_galpao: cols[2]?.trim() || '',
-        desc_galpao: cols[3]?.trim() || '',
-        cliente: cols[4]?.trim() || ''
+        doca: cols[0]?.trim() || '',
+        tipo_programa: cols[1]?.trim() || '',
+        os: cols[2]?.trim() || '',
+        veiculo: cols[3]?.trim() || '',
+        data_inicio: cols[4]?.trim() || '',
+        data_final: cols[5]?.trim() || '',
+        cod_produto: cols[6]?.trim() || '',
+        desc_produto: cols[7]?.trim() || '',
+        cliente: cols[8]?.trim() || ''
       };
     }).filter(Boolean) as any[];
 
@@ -251,7 +255,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
         </div>
         <p className="text-xs text-gray-500 font-bold">
           Cole abaixo as colunas do Excel na ordem: <br/>
-          <span className="text-blue-600">Tipo de Programa | OS | Cód Galpão | Descrição Galpão | Cliente</span>
+          <span className="text-blue-600">Doca | Tipo Programação | OS | Veículo | Data Início | Data Final | Cód Produto | Descrição Produto | Cliente</span>
         </p>
         <textarea
           className="w-full bg-gray-50 border-gray-100 rounded-xl p-4 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-500 h-32"
@@ -295,9 +299,13 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
               <table className="w-full text-[10px] text-left border-collapse">
                 <thead className="sticky top-0 bg-blue-50 z-10">
                   <tr className="border-b border-blue-100">
+                    <th className="p-3 font-black uppercase text-blue-900">Doca</th>
                     <th className="p-3 font-black uppercase text-blue-900">Tipo</th>
                     <th className="p-3 font-black uppercase text-blue-900">OS</th>
-                    <th className="p-3 font-black uppercase text-blue-900">Cód Galpão</th>
+                    <th className="p-3 font-black uppercase text-blue-900">Veículo</th>
+                    <th className="p-3 font-black uppercase text-blue-900">Início</th>
+                    <th className="p-3 font-black uppercase text-blue-900">Final</th>
+                    <th className="p-3 font-black uppercase text-blue-900">Cód Prod</th>
                     <th className="p-3 font-black uppercase text-blue-900">Descrição</th>
                     <th className="p-3 font-black uppercase text-blue-900">Cliente</th>
                     <th className="p-3 font-black uppercase text-blue-900 w-10"></th>
@@ -306,10 +314,14 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
                 <tbody className="divide-y divide-blue-50">
                   {template.externalData.map((row: any, idx: number) => (
                     <tr key={idx} className="hover:bg-white transition-colors group">
+                      <td className="p-3 font-medium text-gray-600">{row.doca}</td>
                       <td className="p-3 font-medium text-gray-600">{row.tipo_programa}</td>
                       <td className="p-3 font-black text-blue-600">{row.os}</td>
-                      <td className="p-3 font-medium text-gray-500">{row.cod_galpao}</td>
-                      <td className="p-3 font-medium text-gray-500 truncate max-w-[150px]" title={row.desc_galpao}>{row.desc_galpao}</td>
+                      <td className="p-3 font-medium text-gray-500">{row.veiculo}</td>
+                      <td className="p-3 font-medium text-gray-500">{row.data_inicio}</td>
+                      <td className="p-3 font-medium text-gray-500">{row.data_final}</td>
+                      <td className="p-3 font-medium text-gray-500">{row.cod_produto}</td>
+                      <td className="p-3 font-medium text-gray-500 truncate max-w-[150px]" title={row.desc_produto}>{row.desc_produto}</td>
                       <td className="p-3 font-medium text-gray-500 truncate max-w-[150px]" title={row.cliente}>{row.cliente}</td>
                       <td className="p-3">
                         <button 

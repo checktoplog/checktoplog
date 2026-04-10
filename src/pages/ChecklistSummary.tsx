@@ -125,12 +125,20 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
                   <p className="text-xs font-bold text-gray-900">{response.externalDataRow.os}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cliente</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cliente}</p>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Doca</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.doca || '---'}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Galpão</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cod_galpao} - {response.externalDataRow.desc_galpao}</p>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Veículo</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.veiculo || '---'}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Produto</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cod_produto} {response.externalDataRow.desc_produto}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cliente</p>
+                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cliente}</p>
                 </div>
                 <div>
                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tipo Programa</p>

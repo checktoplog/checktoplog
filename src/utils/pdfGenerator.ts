@@ -67,10 +67,12 @@ export const generateChecklistPDF = async (response: ChecklistResponse, template
     doc.text('DADOS DO CARREGAMENTO (OS)', 15, 92);
     doc.setFont('helvetica', 'normal');
     doc.text(`OS: ${response.externalDataRow.os}`, 15, 98);
-    doc.text(`Programa: ${response.externalDataRow.tipo_programa}`, 15, 104);
-    doc.text(`Galpão: ${response.externalDataRow.cod_galpao} - ${response.externalDataRow.desc_galpao}`, 15, 110);
-    doc.text(`Cliente: ${response.externalDataRow.cliente}`, 15, 116);
-    yPos = 130;
+    doc.text(`Doca: ${response.externalDataRow.doca || '---'}`, 15, 104);
+    doc.text(`Veículo: ${response.externalDataRow.veiculo || '---'}`, 15, 110);
+    doc.text(`Produto: ${response.externalDataRow.cod_produto || ''} ${response.externalDataRow.desc_produto || ''}`, 15, 116);
+    doc.text(`Cliente: ${response.externalDataRow.cliente}`, 15, 122);
+    doc.text(`Programa: ${response.externalDataRow.tipo_programa}`, 15, 128);
+    yPos = 140;
   }
 
   if (!template.stages || template.stages.length === 0) {
