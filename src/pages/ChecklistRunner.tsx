@@ -724,8 +724,10 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                           const row = template.externalData.find(r => r.os === data.val);
                           return row ? (
                             <>
+                              <p><span className="text-blue-400">Doca:</span> {row.doca || '---'}</p>
                               <p><span className="text-blue-400">Programa:</span> {row.tipo_programa}</p>
-                              <p><span className="text-blue-400">Galpão:</span> {row.cod_galpao} - {row.desc_galpao}</p>
+                              <p><span className="text-blue-400">Veículo:</span> {row.veiculo || '---'}</p>
+                              <p><span className="text-blue-400">Produto:</span> {row.cod_produto || ''} {row.desc_produto || ''}</p>
                               <p><span className="text-blue-400">Cliente:</span> {row.cliente}</p>
                             </>
                           ) : null;

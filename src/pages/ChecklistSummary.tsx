@@ -170,6 +170,28 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
                           <div className="mt-3 p-4 bg-gray-50 border-2 border-dashed border-gray-100 rounded-2xl inline-block shadow-inner">
                             {qData.val ? <img src={qData.val} className="max-h-32 object-contain" alt="Assinatura" /> : <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest italic">Não assinado</span>}
                           </div>
+                        ) : q.type === 'OS' ? (
+                          <div className="mt-2 space-y-2">
+                            <div className="inline-block px-4 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-black uppercase shadow-sm border border-orange-100">
+                              OS: {qData.val || 'Não respondido'}
+                            </div>
+                            {qData.val && template.externalData?.find(r => r.os === qData.val) && (
+                              <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 text-[10px] font-black uppercase text-blue-900 space-y-1">
+                                {(() => {
+                                  const row = template.externalData.find(r => r.os === qData.val);
+                                  return row ? (
+                                    <>
+                                      <p><span className="text-blue-400">Doca:</span> {row.doca || '---'}</p>
+                                      <p><span className="text-blue-400">Programa:</span> {row.tipo_programa}</p>
+                                      <p><span className="text-blue-400">Veículo:</span> {row.veiculo || '---'}</p>
+                                      <p><span className="text-blue-400">Produto:</span> {row.cod_produto || ''} {row.desc_produto || ''}</p>
+                                      <p><span className="text-blue-400">Cliente:</span> {row.cliente}</p>
+                                    </>
+                                  ) : null;
+                                })()}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <div className="mt-2 inline-block px-4 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-black uppercase shadow-sm border border-orange-100">
                             {Array.isArray(qData.val) ? qData.val.join(', ') : String(qData.val || 'Não respondido')}

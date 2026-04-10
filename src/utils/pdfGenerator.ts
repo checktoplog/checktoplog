@@ -115,6 +115,14 @@ export const generateChecklistPDF = async (response: ChecklistResponse, template
           }
         }
         else if (q.type === 'IMAGE') displayVal = imgs.length > 0 ? `[${imgs.length} Foto(s) Anexada(s)]` : '[Nenhuma Foto]';
+        else if (q.type === 'OS') {
+          const row = template.externalData?.find(r => r.os === val);
+          if (row) {
+            displayVal = `OS: ${val}\nDoca: ${row.doca || '---'}\nVeículo: ${row.veiculo || '---'}\nProduto: ${row.cod_produto || ''} ${row.desc_produto || ''}\nCliente: ${row.cliente}`;
+          } else {
+            displayVal = `OS: ${val || '---'}`;
+          }
+        }
         else if (Array.isArray(val)) displayVal = val.join(', ');
         else if (val === true) displayVal = 'Sim';
         else if (val === false) displayVal = 'Não';
