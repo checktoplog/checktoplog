@@ -1,7 +1,7 @@
 
 import { ChecklistResponse, ChecklistTemplate } from '../types';
 
-export const generateChecklistPDF = (response: ChecklistResponse, template: ChecklistTemplate) => {
+export const generateChecklistPDF = async (response: ChecklistResponse, template: ChecklistTemplate) => {
   // @ts-ignore
   const jspdfLib = window.jspdf;
   if (!jspdfLib) {
@@ -12,6 +12,24 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
   const { jsPDF } = jspdfLib;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Helper to convert URL to base64
+  const getBase64FromUrl = async (url: string): Promise<string> => {
+    if (url.startsWith('data:image')) return url;
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.error("Error fetching image for PDF:", url, e);
+      return '';
+    }
+  };
 
   // Header
   doc.setFillColor(234, 88, 12); // Orange 600
@@ -65,7 +83,7 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
 
     template.stages.forEach((stage) => {
       // Get questions for this stage that have data
-      const stageData = response.data[stage.id] || {};
+      const stageData = (response.data || {})[stage.id] || {};
       
       const tableData = stage.questions.map((q) => {
         const qData = stageData[q.id];
@@ -160,7 +178,7 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
       doc.text('FOTOS ANEXADAS', 20, yPos + 5.5);
       yPos += 15;
 
-      allImages.forEach((imgGroup) => {
+      for (const imgGroup of allImages) {
         if (yPos > 260) {
           doc.addPage();
           yPos = 20;
@@ -175,8 +193,15 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
         let xPos = 15;
         const photoSize = 55;
 
-        imgGroup.data.forEach((photo) => {
-          if (!photo || typeof photo !== 'string' || !photo.startsWith('data:image')) return;
+        for (const photoUrl of imgGroup.data) {
+          if (!photoUrl || typeof photoUrl !== 'string') continue;
+          
+          let photo = photoUrl;
+          if (!photo.startsWith('data:image')) {
+            photo = await getBase64FromUrl(photoUrl);
+          }
+          
+          if (!photo || !photo.startsWith('data:image')) continue;
 
           if (xPos + photoSize > pageWidth - 15) {
             xPos = 15;
@@ -190,7 +215,6 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
           }
 
           try {
-            // Auto-detect format from data URL if possible
             const formatMatch = photo.match(/^data:image\/([a-z]+);base64,/);
             const format = formatMatch ? formatMatch[1].toUpperCase() : 'JPEG';
             
@@ -199,20 +223,20 @@ export const generateChecklistPDF = (response: ChecklistResponse, template: Chec
           } catch (e) {
             console.error("Erro ao adicionar imagem ao PDF", e);
           }
-        });
+        }
 
         yPos += photoSize + 15;
-      });
+      }
     }
 
-  // Footer
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text(`Página ${i} de ${pageCount} - Gerado por CheckTopLog`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-  }
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(`Página ${i} de ${pageCount} - Gerado por CheckTopLog`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+    }
 
-  return doc;
-};
+    return doc;
+  };

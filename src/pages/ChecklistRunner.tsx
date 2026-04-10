@@ -177,11 +177,20 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
             }
           }
           
-          setResponse(existing);
-          const sIdx = template.stages.findIndex(s => s.id === existing.currentStageId);
-          if (sIdx >= 0) setCurrentStageIdx(sIdx);
+          if (existing.data && Object.keys(existing.data).length > 0) {
+            setResponse(existing);
+            const sIdx = template.stages.findIndex(s => s.id === existing.currentStageId);
+            if (sIdx >= 0) setCurrentStageIdx(sIdx);
+            dataLoadedRef.current = true;
+          } else {
+            console.warn("Checklist data is missing or incomplete.");
+            alert("Não foi possível carregar os dados completos deste checklist. Verifique sua conexão.");
+            onBack();
+            return;
+          }
+        } else {
+          dataLoadedRef.current = true;
         }
-        dataLoadedRef.current = true;
         setLoading(false);
       }).catch(err => {
         console.error("Erro ao carregar checklist:", err);
@@ -285,7 +294,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   }, [response.data, response.customId, response.externalDataRow, currentStageIdx]);
 
   const getQData = (data: any, stageId: string, qId: string) => {
-    const d = data[stageId]?.[qId];
+    const d = (data || {})[stageId]?.[qId];
     return (d && typeof d === 'object' && 'val' in d) ? d : { val: d || null, imgs: [], docs: [], note: '' };
   };
 
@@ -305,7 +314,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     if (response.status === 'COMPLETED') return;
     setResponse(prev => {
       const stageId = currentStage.id;
-      const currentData = prev.data[stageId]?.[qId];
+      const currentData = (prev.data || {})[stageId]?.[qId];
       const normalizedData = (currentData && typeof currentData === 'object' && 'val' in currentData) 
         ? currentData 
         : { val: currentData || null, imgs: [], docs: [], note: '' };
@@ -313,9 +322,9 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       return {
         ...prev,
         data: {
-          ...prev.data,
+          ...(prev.data || {}),
           [stageId]: { 
-            ...(prev.data[stageId] || {}), 
+            ...((prev.data || {})[stageId] || {}), 
             [qId]: { ...normalizedData, ...updates } 
           }
         }
@@ -343,7 +352,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       
       setResponse(prev => {
         const stageId = currentStage.id;
-        const currentData = prev.data[stageId]?.[qId];
+        const currentData = (prev.data || {})[stageId]?.[qId];
         const normalizedData = (currentData && typeof currentData === 'object' && 'val' in currentData) 
           ? currentData 
           : { val: currentData || null, imgs: [], docs: [], note: '' };
@@ -351,9 +360,9 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
         return {
           ...prev,
           data: {
-            ...prev.data,
+            ...(prev.data || {}),
             [stageId]: { 
-              ...(prev.data[stageId] || {}), 
+              ...((prev.data || {})[stageId] || {}), 
               [qId]: { 
                 ...normalizedData, 
                 imgs: [...(normalizedData.imgs || []), ...newImgs] 
@@ -381,7 +390,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
     setResponse(prev => {
       const stageId = currentStage.id;
-      const currentData = prev.data[stageId]?.[qId];
+      const currentData = (prev.data || {})[stageId]?.[qId];
       const normalizedData = (currentData && typeof currentData === 'object' && 'val' in currentData) 
         ? currentData 
         : { val: currentData || null, imgs: [], docs: [], note: '' };
@@ -389,9 +398,9 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       return {
         ...prev,
         data: {
-          ...prev.data,
+          ...(prev.data || {}),
           [stageId]: { 
-            ...(prev.data[stageId] || {}), 
+            ...((prev.data || {})[stageId] || {}), 
             [qId]: { 
               ...normalizedData, 
               docs: [...(normalizedData.docs || []), ...newDocs] 
@@ -484,7 +493,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       try {
         if ((window as any).jspdf) {
           setFinalizeProgress('Gerando relatório PDF...');
-          const doc = generateChecklistPDF(responseWithUrls, template);
+          const doc = await generateChecklistPDF(responseWithUrls, template);
           const pdfBlob = doc.output('blob');
           
           setFinalizeProgress('Enviando PDF para o servidor...');
@@ -493,28 +502,42 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           finalPdfUrl = url || '';
 
           // --- OneDrive Upload ---
-          try {
-            const reader = new FileReader();
-            reader.readAsDataURL(pdfBlob);
-            reader.onloadend = async () => {
-              const base64data = (reader.result as string).split(',')[1];
-              const d = new Date(response.updatedAt);
-              const dateStr = d.toISOString().split('T')[0];
-              const filename = `${response.customId || 'REG'}_${template.title}_${dateStr}`.replace(/[^a-z0-9_-]/gi, '_') + '.pdf';
+          const uploadToOneDrive = async () => {
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(pdfBlob);
+              reader.onloadend = async () => {
+                try {
+                  const base64data = (reader.result as string).split(',')[1];
+                  const d = new Date(response.updatedAt);
+                  const dateStr = d.toISOString().split('T')[0];
+                  const filename = `${response.customId || 'REG'}_${template.title}_${dateStr}`.replace(/[^a-z0-9_-]/gi, '_') + '.pdf';
 
-              setFinalizeProgress('Sincronizando com OneDrive...');
-              await fetch('/api/onedrive/upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  fileName: filename,
-                  fileContent: base64data
-                })
-              });
-            };
-          } catch (oneDriveErr) {
-            console.error("Erro ao enviar para OneDrive:", oneDriveErr);
-          }
+                  setFinalizeProgress('Sincronizando com OneDrive...');
+                  const res = await fetch('/api/onedrive/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      fileName: filename,
+                      fileContent: base64data
+                    })
+                  });
+                  
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    console.warn("OneDrive upload failed:", err.error);
+                  }
+                  resolve(true);
+                } catch (e) {
+                  console.error("OneDrive upload error:", e);
+                  resolve(false); // Don't block finalization
+                }
+              };
+              reader.onerror = () => resolve(false);
+            });
+          };
+
+          await uploadToOneDrive();
         }
       } catch (pdfErr) {
         console.warn("PDF não gerado ou erro no upload:", pdfErr);

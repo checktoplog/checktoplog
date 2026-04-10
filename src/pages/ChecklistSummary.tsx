@@ -54,7 +54,7 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
   const downloadPDF = async () => {
     if (!response) return;
     try {
-      const doc = generateChecklistPDF(response, template);
+      const doc = await generateChecklistPDF(response, template);
       const d = new Date(response.updatedAt);
       const dateStr = d.toISOString().split('T')[0];
       const filename = `${response.customId || 'REG'}_${template.title}_${dateStr}`.replace(/[^a-z0-9_-]/gi, '_');
@@ -66,8 +66,15 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
 
   const getQuestionData = (stageId: string, qId: string, rawData: any) => {
     const qData = rawData?.[stageId]?.[qId];
-    if (qData && typeof qData === 'object' && ('val' in qData)) return qData;
-    return { val: qData || null, imgs: [], note: '' };
+    if (qData && typeof qData === 'object' && ('val' in qData)) {
+      return {
+        val: qData.val,
+        imgs: qData.imgs || [],
+        docs: qData.docs || [],
+        note: qData.note || ''
+      };
+    }
+    return { val: qData || null, imgs: [], docs: [], note: '' };
   };
 
   if (loading) return (

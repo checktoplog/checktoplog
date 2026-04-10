@@ -12,8 +12,9 @@ const UserManagement: React.FC = () => {
   const [isMsConnected, setIsMsConnected] = useState(false);
 
   useEffect(() => {
-    // Check if connected (simple check for cookie presence via API or just state)
-    // For now, we'll assume not connected unless the session is active
+    // Check if connected via cookie
+    const hasToken = document.cookie.includes('ms_refresh_token');
+    if (hasToken) setIsMsConnected(true);
   }, []);
 
   const handleMsConnect = async () => {
@@ -419,12 +420,27 @@ create policy "Acesso Público Responses" on responses for all using (true) with
             <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Integração OneDrive</h3>
             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Sincronização automática de PDFs para a pasta compartilhada</p>
           </div>
-          <button 
-            onClick={handleMsConnect}
-            className={`w-full md:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg ${isMsConnected ? 'bg-green-100 text-green-700 border-2 border-green-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-          >
-            {isMsConnected ? '✓ OneDrive Conectado' : '🔗 Conectar OneDrive'}
-          </button>
+          <div className="flex flex-col md:flex-row gap-2">
+            <button 
+              onClick={handleMsConnect}
+              className={`w-full md:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg ${isMsConnected ? 'bg-green-100 text-green-700 border-2 border-green-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+            >
+              {isMsConnected ? '✓ OneDrive Conectado' : '🔗 Conectar OneDrive'}
+            </button>
+            {isMsConnected && (
+              <button 
+                onClick={() => {
+                  document.cookie = "ms_refresh_token=; Max-Age=0; path=/;";
+                  document.cookie = "ms_access_token=; Max-Age=0; path=/;";
+                  setIsMsConnected(false);
+                  alert('OneDrive desconectado.');
+                }}
+                className="w-full md:w-auto px-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-red-600 hover:bg-red-50 transition-all"
+              >
+                Desconectar
+              </button>
+            )}
+          </div>
         </div>
         {isMsConnected && (
           <div className="p-4 bg-green-50 rounded-2xl border border-green-100">

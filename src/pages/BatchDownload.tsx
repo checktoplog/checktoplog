@@ -117,7 +117,15 @@ const BatchDownload: React.FC = () => {
         } else {
             // Fallback: Gera na hora se não foi salvo no storage por algum motivo
             if (item.type === 'checklist' && item.response && item.template) {
-              const doc = generateChecklistPDF(item.response, item.template);
+              let fullResponse = item.response;
+              
+              // Se os dados estão faltando (provavelmente é um resumo), tenta buscar o detalhe
+              if (!fullResponse.data || Object.keys(fullResponse.data).length === 0) {
+                const fetched = await supabaseService.getResponseById(fullResponse.id);
+                if (fetched) fullResponse = fetched;
+              }
+
+              const doc = await generateChecklistPDF(fullResponse, item.template);
               doc.save(`${item.filename}.pdf`);
             }
         }

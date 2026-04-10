@@ -2,7 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { code } = req.query;
+  const { code, error, error_description } = req.query;
   const CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
   const CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
 
@@ -10,8 +10,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const host = req.headers.host;
   const redirectUri = `${protocol}://${host}/api/auth/microsoft/callback`;
 
+  if (error) {
+    return res.status(400).send(`
+      <html>
+        <body style="font-family: sans-serif; padding: 20px;">
+          <h2 style="color: #d32f2f;">Erro na Autenticação Microsoft</h2>
+          <p><b>Erro:</b> ${error}</p>
+          <p><b>Descrição:</b> ${error_description || 'Sem descrição.'}</p>
+          <hr/>
+          <p>Verifique se a <b>Redirect URI</b> no Azure está exatamente como: <br/><code>${redirectUri}</code></p>
+          <button onclick="window.close()">Fechar Janela</button>
+        </body>
+      </html>
+    `);
+  }
+
   if (!code) {
-    return res.status(400).send('No code provided');
+    return res.status(400).send('Nenhum código de autorização foi recebido da Microsoft.');
   }
 
   try {

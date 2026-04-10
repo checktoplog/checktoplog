@@ -423,11 +423,21 @@ export const supabaseService = {
     if (!canUseSupabase()) {
       // Check specific detail cache first
       const detail = getResponseDetail(id);
-      if (detail) return detail;
+      // Ensure it has the 'data' field, otherwise it's just a summary
+      if (detail && detail.data && Object.keys(detail.data).length > 0) return detail;
 
       // Fallback to list (which might only have metadata now)
       const items = getLocal<ChecklistResponse>(LOCAL_STORAGE_KEYS.RESPONSES);
-      return items.find(i => i.id === id) || null;
+      const found = items.find(i => i.id === id);
+      
+      // If we found something but it has no data, it's a summary. 
+      // We return null to avoid showing an empty checklist.
+      if (found && (!found.data || Object.keys(found.data).length === 0)) {
+        console.warn(`Checklist ${id} found in local list but has no data (summary only).`);
+        return null;
+      }
+      
+      return found || null;
     }
     try {
       const { data: r, error } = await supabase
@@ -441,7 +451,9 @@ export const supabaseService = {
         console.error('Error fetching response:', error);
         
         // Try local detail cache if server fails
-        return getResponseDetail(id);
+        const detail = getResponseDetail(id);
+        if (detail && detail.data) return detail;
+        return null;
       }
       
       const response: ChecklistResponse = {
@@ -450,7 +462,7 @@ export const supabaseService = {
         customId: r.custom_id,
         status: r.status,
         currentStageId: r.current_stage_id,
-        data: r.data,
+        data: r.data || {},
         stageTimeSpent: r.stage_time_spent,
         externalDataRow: r.external_data_row,
         createdAt: r.created_at,
@@ -466,7 +478,9 @@ export const supabaseService = {
     } catch (err) {
       console.error('Erro ao buscar resposta por ID:', err);
       // Try local detail cache as fallback
-      return getResponseDetail(id);
+      const detail = getResponseDetail(id);
+      if (detail && detail.data) return detail;
+      return null;
     }
   },
 
