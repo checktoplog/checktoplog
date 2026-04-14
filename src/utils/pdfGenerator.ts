@@ -81,211 +81,203 @@ export const generateChecklistPDF = async (response: ChecklistResponse, template
     return doc;
   }
 
-    const allImages: { label: string, data: string[] }[] = [];
+  // Helper to render image grid inline
+  const renderImageGrid = async (images: string[], startY: number) => {
+    let xPos = 15;
+    let currentY = startY;
+    const photoSize = 45;
+    const margin = 5;
 
-    template.stages.forEach((stage) => {
-      // Get questions for this stage that have data
-      const stageData = (response.data || {})[stage.id] || {};
+    for (const photoUrl of images) {
+      if (!photoUrl || typeof photoUrl !== 'string') continue;
       
-      const tableData = stage.questions.map((q) => {
-        const qData = stageData[q.id];
-        
-        // Extract value and images safely
-        let val: any = null;
-        let imgs: string[] = [];
-        let note = '';
+      let photo = photoUrl;
+      if (!photo.startsWith('data:image')) {
+        photo = await getBase64FromUrl(photoUrl);
+      }
+      
+      if (!photo || !photo.startsWith('data:image')) continue;
 
-        if (qData && typeof qData === 'object') {
-          val = 'val' in qData ? qData.val : qData;
-          imgs = qData.imgs || [];
-          note = qData.note || '';
+      if (xPos + photoSize > pageWidth - 15) {
+        xPos = 15;
+        currentY += photoSize + margin;
+      }
+
+      if (currentY + photoSize > doc.internal.pageSize.getHeight() - 20) {
+        doc.addPage();
+        currentY = 20;
+        xPos = 15;
+      }
+
+      try {
+        const formatMatch = photo.match(/^data:image\/([a-z]+);base64,/);
+        const format = formatMatch ? formatMatch[1].toUpperCase() : 'JPEG';
+        
+        doc.addImage(photo, format, xPos, currentY, photoSize, photoSize, undefined, 'FAST');
+        xPos += photoSize + margin;
+      } catch (e) {
+        console.error("Erro ao adicionar imagem ao PDF", e);
+      }
+    }
+    return currentY + photoSize + margin;
+  };
+
+  for (const stage of template.stages) {
+    const stageData = (response.data || {})[stage.id] || {};
+    
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    // Stage Header
+    doc.setFillColor(245, 245, 245);
+    doc.rect(15, yPos, pageWidth - 30, 8, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(234, 88, 12);
+    doc.text(stage.name.toUpperCase(), 20, yPos + 5.5);
+    yPos += 12;
+
+    for (const q of stage.questions) {
+      const qData = stageData[q.id];
+      let val: any = null;
+      let imgs: string[] = [];
+      let note = '';
+
+      if (qData && typeof qData === 'object') {
+        val = 'val' in qData ? qData.val : qData;
+        imgs = qData.imgs || [];
+        note = qData.note || '';
+      } else {
+        val = qData;
+      }
+
+      let displayVal = val;
+      let signatureImg = '';
+
+      if (q.type === 'SIGNATURE') {
+        displayVal = val ? '[Assinado Digitalmente]' : '[Pendente]';
+        if (val && typeof val === 'string' && val.startsWith('data:image')) {
+          signatureImg = val;
+        }
+      }
+      else if (q.type === 'IMAGE') displayVal = imgs.length > 0 ? `[${imgs.length} Foto(s) Anexada(s)]` : '[Nenhuma Foto]';
+      else if (q.type === 'OS') {
+        const row = template.externalData?.find(r => r.os === val);
+        if (row) {
+          displayVal = `OS: ${val}\nDoca: ${row.doca || '---'}\nVeículo: ${row.veiculo || '---'}\nProduto: ${row.cod_produto || ''} ${row.desc_produto || ''}\nCliente: ${row.cliente}`;
         } else {
-          val = qData;
+          displayVal = `OS: ${val || '---'}`;
         }
-        
-        if (imgs.length > 0) {
-          allImages.push({ label: q.text, data: imgs });
-        }
+      }
+      else if (Array.isArray(val)) displayVal = val.join(', ');
+      else if (val === true) displayVal = 'Sim';
+      else if (val === false) displayVal = 'Não';
+      else if (val === null || val === undefined || String(val) === 'null' || String(val) === '') displayVal = '---';
 
-        let displayVal = val;
-        if (q.type === 'SIGNATURE') {
-          displayVal = val ? '[Assinado Digitalmente]' : '[Pendente]';
-          if (val && typeof val === 'string' && val.startsWith('data:image')) {
-            allImages.push({ label: `Assinatura: ${q.text}`, data: [val] });
-          }
-        }
-        else if (q.type === 'IMAGE') displayVal = imgs.length > 0 ? `[${imgs.length} Foto(s) Anexada(s)]` : '[Nenhuma Foto]';
-        else if (q.type === 'OS') {
-          const row = template.externalData?.find(r => r.os === val);
-          if (row) {
-            displayVal = `OS: ${val}\nDoca: ${row.doca || '---'}\nVeículo: ${row.veiculo || '---'}\nProduto: ${row.cod_produto || ''} ${row.desc_produto || ''}\nCliente: ${row.cliente}`;
-          } else {
-            displayVal = `OS: ${val || '---'}`;
-          }
-        }
-        else if (Array.isArray(val)) displayVal = val.join(', ');
-        else if (val === true) displayVal = 'Sim';
-        else if (val === false) displayVal = 'Não';
-        else if (val === null || val === undefined || String(val) === 'null' || String(val) === '') displayVal = '---';
+      if (q.type !== 'IMAGE' && q.type !== 'SIGNATURE' && imgs.length > 0) {
+        displayVal = `${displayVal || '---'} [${imgs.length} Foto(s) Anexada(s)]`;
+      }
 
-        // If it's not an IMAGE type but has photos attached, mention it
-        if (q.type !== 'IMAGE' && q.type !== 'SIGNATURE' && imgs.length > 0) {
-          displayVal = `${displayVal || '---'} [${imgs.length} Foto(s) Anexada(s)]`;
-        }
+      const finalNote = note ? `\nObs: ${note}` : '';
+      const finalVal = (displayVal === null || displayVal === undefined) ? '---' : displayVal;
 
-        const finalNote = note ? `\nObs: ${note}` : '';
-        const finalVal = (displayVal === null || displayVal === undefined) ? '---' : displayVal;
-
-        return [q.text, String(finalVal) + finalNote];
+      // Render Question Row
+      // @ts-ignore
+      doc.autoTable({
+        startY: yPos,
+        body: [[q.text, String(finalVal) + finalNote]],
+        theme: 'grid',
+        bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
+        columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
+        margin: { left: 15, right: 15 },
+        styles: { overflow: 'linebreak', cellPadding: 3 },
       });
 
-      if (tableData.length > 0) {
-        if (yPos > 250) {
+      // @ts-ignore
+      yPos = doc.lastAutoTable.finalY + 2;
+
+      // Render Signature if exists
+      if (signatureImg) {
+        if (yPos + 30 > doc.internal.pageSize.getHeight() - 20) {
           doc.addPage();
           yPos = 20;
         }
-
-        doc.setFillColor(245, 245, 245);
-        doc.rect(15, yPos, pageWidth - 30, 8, 'F');
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(234, 88, 12);
-        doc.text(stage.name.toUpperCase(), 20, yPos + 5.5);
-        yPos += 10;
-
-        // @ts-ignore
-        doc.autoTable({
-          startY: yPos,
-          head: [['Campo', 'Resposta']],
-          body: tableData,
-          theme: 'grid',
-          headStyles: { fillColor: [60, 60, 60], fontSize: 8 },
-          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
-          columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
-          margin: { left: 15, right: 15 },
-          styles: { overflow: 'linebreak', cellPadding: 3 },
-        });
-
-        // @ts-ignore
-        yPos = doc.lastAutoTable.finalY + 10;
-
-        // Add Divergences for this stage
-        const stageDivs = response.divergences?.[stage.id] || [];
-        if (stageDivs.length > 0) {
-          if (yPos > 240) {
-            doc.addPage();
-            yPos = 20;
-          }
-
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(185, 28, 28); // Red-700
-          doc.text('⚠️ DIVERGÊNCIAS RELATADAS NESTA ETAPA:', 15, yPos);
-          yPos += 5;
-
-          stageDivs.forEach((div, idx) => {
-            if (yPos > 260) {
-              doc.addPage();
-              yPos = 20;
-            }
-            
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.setTextColor(40, 40, 40);
-            doc.text(`${idx + 1}. ${div.comment}`, 20, yPos);
-            yPos += 5;
-
-            let attachments = [];
-            if (div.images.length > 0) {
-              attachments.push(`${div.images.length} Foto(s)`);
-              allImages.push({ label: `Divergência: ${div.comment.substring(0, 30)}...`, data: div.images });
-            }
-            if (div.videos.length > 0) attachments.push(`${div.videos.length} Vídeo(s)`);
-            if (div.files.length > 0) attachments.push(`${div.files.length} Arquivo(s)`);
-
-            if (attachments.length > 0) {
-              doc.setFont('helvetica', 'italic');
-              doc.setFontSize(7);
-              doc.setTextColor(100, 100, 100);
-              doc.text(`Anexos: ${attachments.join(', ')}`, 25, yPos);
-              yPos += 5;
-            }
-            yPos += 2;
-          });
-          yPos += 5;
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Assinatura:', 20, yPos + 5);
+        try {
+          doc.addImage(signatureImg, 'PNG', 20, yPos + 7, 40, 20);
+          yPos += 30;
+        } catch (e) {
+          console.error("Erro ao adicionar assinatura ao PDF", e);
+          yPos += 10;
         }
       }
-    });
 
-    // Add Images Section
-    if (allImages.length > 0) {
-      if (yPos > 230) {
-        doc.addPage();
-        yPos = 20;
-      } else {
+      // Render Images if exist
+      if (imgs.length > 0) {
+        yPos = await renderImageGrid(imgs, yPos);
         yPos += 5;
       }
 
-      doc.setFillColor(234, 88, 12);
-      doc.rect(15, yPos, pageWidth - 30, 8, 'F');
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text('FOTOS ANEXADAS', 20, yPos + 5.5);
-      yPos += 15;
+      yPos += 2;
+    }
 
-      for (const imgGroup of allImages) {
+    // Add Divergences for this stage
+    const stageDivs = response.divergences?.[stage.id] || [];
+    if (stageDivs.length > 0) {
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(185, 28, 28); // Red-700
+      doc.text('⚠️ DIVERGÊNCIAS RELATADAS NESTA ETAPA:', 15, yPos);
+      yPos += 8;
+
+      for (const div of stageDivs) {
         if (yPos > 260) {
           doc.addPage();
           yPos = 20;
         }
-
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(8);
+        
         doc.setFont('helvetica', 'bold');
-        doc.text(imgGroup.label.toUpperCase(), 15, yPos);
-        yPos += 5;
+        doc.setFontSize(8);
+        doc.setTextColor(40, 40, 40);
+        
+        // Split comment if too long
+        const splitComment = doc.splitTextToSize(div.comment, pageWidth - 40);
+        doc.text(splitComment, 20, yPos);
+        yPos += (splitComment.length * 4) + 2;
 
-        let xPos = 15;
-        const photoSize = 55;
-
-        for (const photoUrl of imgGroup.data) {
-          if (!photoUrl || typeof photoUrl !== 'string') continue;
-          
-          let photo = photoUrl;
-          if (!photo.startsWith('data:image')) {
-            photo = await getBase64FromUrl(photoUrl);
-          }
-          
-          if (!photo || !photo.startsWith('data:image')) continue;
-
-          if (xPos + photoSize > pageWidth - 15) {
-            xPos = 15;
-            yPos += photoSize + 5;
-          }
-
-          if (yPos + photoSize > doc.internal.pageSize.getHeight() - 20) {
-            doc.addPage();
-            yPos = 20;
-            xPos = 15;
-          }
-
-          try {
-            const formatMatch = photo.match(/^data:image\/([a-z]+);base64,/);
-            const format = formatMatch ? formatMatch[1].toUpperCase() : 'JPEG';
-            
-            doc.addImage(photo, format, xPos, yPos, photoSize, photoSize, undefined, 'FAST');
-            xPos += photoSize + 5;
-          } catch (e) {
-            console.error("Erro ao adicionar imagem ao PDF", e);
-          }
+        if (div.images.length > 0) {
+          yPos = await renderImageGrid(div.images, yPos);
+          yPos += 4;
         }
 
-        yPos += photoSize + 15;
-      }
-    }
+        let otherAttachments = [];
+        if (div.videos.length > 0) otherAttachments.push(`${div.videos.length} Vídeo(s)`);
+        if (div.files.length > 0) otherAttachments.push(`${div.files.length} Arquivo(s)`);
 
-    // Footer
+        if (otherAttachments.length > 0) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(7);
+          doc.setTextColor(100, 100, 100);
+          doc.text(`Outros Anexos: ${otherAttachments.join(', ')}`, 25, yPos);
+          yPos += 5;
+        }
+        yPos += 4;
+      }
+      yPos += 5;
+    }
+  }
+
+  // Footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
