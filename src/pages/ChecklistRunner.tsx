@@ -119,6 +119,8 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   const [finalizeProgress, setFinalizeProgress] = useState('');
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showErrors, setShowErrors] = useState(false);
+  const [showDivergenceModal, setShowDivergenceModal] = useState(false);
+  const [divergenceStageId, setDivergenceStageId] = useState<string | null>(null);
   
   const stageStartTimeRef = useRef(Date.now());
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -618,6 +620,16 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{currentStage.name} ({currentStageIdx + 1}/{template.stages.length})</p>
         </div>
         <div className="flex items-center gap-2 min-w-[60px] justify-end">
+          <button 
+            onClick={() => {
+              setDivergenceStageId(currentStage.id);
+              setShowDivergenceModal(true);
+            }}
+            className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 rounded-full border border-red-100 hover:bg-red-100 transition-colors shadow-sm"
+            title="Relatar Divergência"
+          >
+            ⚠️
+          </button>
           {saveMessage && (
             <span className={`text-[8px] font-black uppercase tracking-widest animate-fadeIn ${saveMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
               {saveMessage.text}
@@ -680,6 +692,37 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       </section>
 
       <div className="space-y-4">
+        {response.divergences?.[currentStage.id] && response.divergences[currentStage.id].length > 0 && (
+          <div className="space-y-2">
+            {response.divergences[currentStage.id].map(div => (
+              <div key={div.id} className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3 animate-fadeIn">
+                <span className="text-lg mt-1">⚠️</span>
+                <div className="flex-1">
+                  <p className="text-[10px] font-black text-red-900 uppercase tracking-tight">Divergência Relatada</p>
+                  <p className="text-xs font-bold text-red-800 mt-1">{div.comment}</p>
+                  {(div.images.length > 0 || div.videos.length > 0 || div.files.length > 0) && (
+                    <div className="flex gap-2 mt-2">
+                      {div.images.length > 0 && <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase">{div.images.length} Fotos</span>}
+                      {div.videos.length > 0 && <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase">{div.videos.length} Vídeos</span>}
+                      {div.files.length > 0 && <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase">{div.files.length} Arquivos</span>}
+                    </div>
+                  )}
+                </div>
+                <button 
+                  onClick={() => {
+                    const updatedDivs = { ...response.divergences };
+                    updatedDivs[currentStage.id] = updatedDivs[currentStage.id].filter(d => d.id !== div.id);
+                    setResponse({ ...response, divergences: updatedDivs });
+                  }}
+                  className="text-red-400 hover:text-red-600 font-black"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {currentStage.questions.map(q => {
           const data = currentQData(q.id);
           const hasError = showErrors && isQuestionEmpty(q, currentStage.id);
@@ -820,6 +863,178 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
       {previewImage && <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}><img src={previewImage} className="max-w-full max-h-full rounded-2xl shadow-2xl" /></div>}
       {signatureTarget && <SignatureModal onClose={() => setSignatureTarget(null)} onSave={val => { updateQ(signatureTarget.qId, { val }); setSignatureTarget(null); }} />}
+      {showDivergenceModal && divergenceStageId && (
+        <DivergenceModal 
+          stageId={divergenceStageId}
+          onClose={() => {
+            setShowDivergenceModal(false);
+            setDivergenceStageId(null);
+          }}
+          onSave={async (div) => {
+            const currentDivs = response.divergences || {};
+            const stageDivs = currentDivs[divergenceStageId] || [];
+            const updatedDivs = {
+              ...currentDivs,
+              [divergenceStageId]: [...stageDivs, div]
+            };
+            
+            const updatedResponse = {
+              ...response,
+              divergences: updatedDivs
+            };
+            
+            setResponse(updatedResponse);
+            await supabaseService.saveResponse(updatedResponse);
+            
+            setShowDivergenceModal(false);
+            setDivergenceStageId(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+interface DivergenceModalProps {
+  stageId: string;
+  onClose: () => void;
+  onSave: (div: any) => void;
+}
+
+const DivergenceModal: React.FC<DivergenceModalProps> = ({ stageId, onClose, onSave }) => {
+  const [comment, setComment] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [videos, setVideos] = useState<string[]>([]);
+  const [files, setFiles] = useState<{ name: string; url: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (type: 'image' | 'video' | 'file', inputFiles: FileList | null) => {
+    if (!inputFiles) return;
+    setUploading(true);
+    try {
+      for (let i = 0; i < inputFiles.length; i++) {
+        const file = inputFiles[i];
+        const path = `divergences/${Date.now()}_${file.name}`;
+        
+        let fileToUpload: File | Blob | string = file;
+        if (type === 'image') {
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+          fileToUpload = await resizeImage(base64, 1200, 1200);
+        }
+
+        const url = await supabaseService.uploadFile('responses', path, fileToUpload);
+        if (url) {
+          if (type === 'image') setImages(prev => [...prev, url]);
+          else if (type === 'video') setVideos(prev => [...prev, url]);
+          else setFiles(prev => [...prev, { name: file.name, url }]);
+        }
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Erro ao fazer upload de arquivo.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b flex justify-between items-center bg-red-50">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">⚠️</span>
+            <h3 className="text-lg font-black uppercase tracking-tighter text-red-900">Relatar Divergência</h3>
+          </div>
+          <button onClick={onClose} className="text-red-400 hover:text-red-600 font-black">✕</button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Comentário / Descrição</label>
+            <textarea 
+              className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-red-500 min-h-[100px]"
+              placeholder="Descreva a divergência encontrada..."
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="cursor-pointer flex flex-col items-center justify-center p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl hover:border-red-300 transition-colors">
+              <span className="text-xl mb-1">📸</span>
+              <span className="text-[9px] font-black uppercase text-gray-500">Imagens</span>
+              <input type="file" className="hidden" accept="image/*" multiple onChange={e => handleUpload('image', e.target.files)} />
+            </label>
+            <label className="cursor-pointer flex flex-col items-center justify-center p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl hover:border-red-300 transition-colors">
+              <span className="text-xl mb-1">🎥</span>
+              <span className="text-[9px] font-black uppercase text-gray-500">Vídeos</span>
+              <input type="file" className="hidden" accept="video/*" multiple onChange={e => handleUpload('video', e.target.files)} />
+            </label>
+            <label className="cursor-pointer flex flex-col items-center justify-center p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl hover:border-red-300 transition-colors">
+              <span className="text-xl mb-1">📁</span>
+              <span className="text-[9px] font-black uppercase text-gray-500">Arquivos</span>
+              <input type="file" className="hidden" multiple onChange={e => handleUpload('file', e.target.files)} />
+            </label>
+          </div>
+
+          {(images.length > 0 || videos.length > 0 || files.length > 0) && (
+            <div className="space-y-4 pt-4 border-t">
+              {images.length > 0 && (
+                <div className="grid grid-cols-4 gap-2">
+                  {images.map((img, i) => (
+                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100">
+                      <img src={img} className="w-full h-full object-cover" />
+                      <button onClick={() => setImages(images.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {videos.length > 0 && (
+                <div className="space-y-2">
+                  {videos.map((vid, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-xl">
+                      <span className="text-[9px] font-bold text-gray-500 truncate">🎥 Vídeo {i+1}</span>
+                      <button onClick={() => setVideos(videos.filter((_, idx) => idx !== i))} className="text-red-500 font-bold px-2">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {files.length > 0 && (
+                <div className="space-y-2">
+                  {files.map((f, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-xl">
+                      <span className="text-[9px] font-bold text-gray-500 truncate">📄 {f.name}</span>
+                      <button onClick={() => setFiles(files.filter((_, idx) => idx !== i))} className="text-red-500 font-bold px-2">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 bg-gray-50 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-4 rounded-2xl bg-white border-2 border-gray-200 text-gray-500 font-black text-[10px] uppercase">Cancelar</button>
+          <button 
+            disabled={uploading || !comment.trim()}
+            onClick={() => onSave({
+              id: `div_${Date.now()}`,
+              comment,
+              images,
+              videos,
+              files,
+              createdAt: new Date().toISOString()
+            })} 
+            className="flex-1 py-4 rounded-2xl bg-red-600 text-white font-black text-[10px] uppercase shadow-lg disabled:opacity-50"
+          >
+            {uploading ? 'Enviando...' : 'Salvar Alerta'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

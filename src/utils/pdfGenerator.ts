@@ -168,6 +168,52 @@ export const generateChecklistPDF = async (response: ChecklistResponse, template
 
         // @ts-ignore
         yPos = doc.lastAutoTable.finalY + 10;
+
+        // Add Divergences for this stage
+        const stageDivs = response.divergences?.[stage.id] || [];
+        if (stageDivs.length > 0) {
+          if (yPos > 240) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(185, 28, 28); // Red-700
+          doc.text('⚠️ DIVERGÊNCIAS RELATADAS NESTA ETAPA:', 15, yPos);
+          yPos += 5;
+
+          stageDivs.forEach((div, idx) => {
+            if (yPos > 260) {
+              doc.addPage();
+              yPos = 20;
+            }
+            
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(40, 40, 40);
+            doc.text(`${idx + 1}. ${div.comment}`, 20, yPos);
+            yPos += 5;
+
+            let attachments = [];
+            if (div.images.length > 0) {
+              attachments.push(`${div.images.length} Foto(s)`);
+              allImages.push({ label: `Divergência: ${div.comment.substring(0, 30)}...`, data: div.images });
+            }
+            if (div.videos.length > 0) attachments.push(`${div.videos.length} Vídeo(s)`);
+            if (div.files.length > 0) attachments.push(`${div.files.length} Arquivo(s)`);
+
+            if (attachments.length > 0) {
+              doc.setFont('helvetica', 'italic');
+              doc.setFontSize(7);
+              doc.setTextColor(100, 100, 100);
+              doc.text(`Anexos: ${attachments.join(', ')}`, 25, yPos);
+              yPos += 5;
+            }
+            yPos += 2;
+          });
+          yPos += 5;
+        }
       }
     });
 

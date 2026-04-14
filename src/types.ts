@@ -56,6 +56,15 @@ export interface ChecklistTemplate {
   externalDataImportedAt?: string;
 }
 
+export interface Divergence {
+  id: string;
+  comment: string;
+  images: string[];
+  videos: string[];
+  files: { name: string; url: string }[];
+  createdAt: string;
+}
+
 export interface ChecklistResponse {
   id: string;
   templateId: string;
@@ -64,6 +73,7 @@ export interface ChecklistResponse {
   currentStageId: string;
   data: Record<string, any>; 
   stageTimeSpent?: Record<string, number>; 
+  divergences?: Record<string, Divergence[]>; // Key is stageId
   externalDataRow?: ExternalDataRow;
   createdAt: string;
   updatedAt: string;

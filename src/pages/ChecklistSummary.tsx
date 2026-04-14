@@ -238,6 +238,41 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
                   );
                 })}
               </div>
+
+              {response.divergences?.[stage.id] && response.divergences[stage.id].length > 0 && (
+                <div className="p-6 bg-red-50/50 border-t border-red-100 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <h4 className="text-[10px] font-black text-red-900 uppercase tracking-widest">Divergências Relatadas nesta Etapa</h4>
+                  </div>
+                  <div className="space-y-4">
+                    {response.divergences[stage.id].map((div) => (
+                      <div key={div.id} className="bg-white p-4 rounded-2xl border border-red-100 shadow-sm space-y-3">
+                        <p className="text-xs font-bold text-gray-800">{div.comment}</p>
+                        
+                        {div.images.length > 0 && (
+                          <div className="grid grid-cols-4 gap-2">
+                            {div.images.map((img, i) => (
+                              <img key={i} src={img} className="aspect-square rounded-lg object-cover border border-gray-100 cursor-pointer" onClick={() => setPreviewImage(img)} />
+                            ))}
+                          </div>
+                        )}
+
+                        {(div.videos.length > 0 || div.files.length > 0) && (
+                          <div className="flex flex-wrap gap-2">
+                            {div.videos.map((vid, i) => (
+                              <a key={i} href={vid} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-gray-100 text-[9px] font-black text-gray-600 rounded-full uppercase border border-gray-200">🎥 Vídeo {i+1}</a>
+                            ))}
+                            {div.files.map((f, i) => (
+                              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-gray-100 text-[9px] font-black text-gray-600 rounded-full uppercase border border-gray-200">📄 {f.name}</a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

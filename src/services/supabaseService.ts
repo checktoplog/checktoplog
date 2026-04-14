@@ -57,7 +57,7 @@ const saveLocal = <T extends { id: string }>(key: string, item: T) => {
   // to keep the list small and avoid quota issues.
   let itemToSave = item;
   if (key === LOCAL_STORAGE_KEYS.RESPONSES) {
-    const { data, ...summary } = item as any;
+    const { data, divergences, ...summary } = item as any;
     itemToSave = summary as any;
   }
 
@@ -381,6 +381,7 @@ export const supabaseService = {
         currentStageId: r.current_stage_id,
         data: r.data,
         stageTimeSpent: r.stage_time_spent,
+        divergences: r.divergences,
         externalDataRow: r.external_data_row,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
@@ -464,6 +465,7 @@ export const supabaseService = {
         currentStageId: r.current_stage_id,
         data: r.data || {},
         stageTimeSpent: r.stage_time_spent,
+        divergences: r.divergences || {},
         externalDataRow: r.external_data_row,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
@@ -504,6 +506,7 @@ export const supabaseService = {
         current_stage_id: response.currentStageId,
         data: response.data,
         stage_time_spent: response.stageTimeSpent,
+        divergences: response.divergences,
         external_data_row: response.externalDataRow,
         created_at: response.createdAt,
         updated_at: new Date().toISOString(),
