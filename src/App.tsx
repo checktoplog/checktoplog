@@ -94,6 +94,53 @@ const App: React.FC = () => {
   const [editTemplateId, setEditTemplateId] = useState<string | undefined>();
   const [activeChecklistId, setActiveChecklistId] = useState<string | undefined>();
 
+  // Browser History Management
+  const isInternalNav = useRef(false);
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state) {
+        isInternalNav.current = true;
+        const { page, activeTemplate, activeChecklistId, editTemplateId } = event.state;
+        setCurrentPage(page || 'templates');
+        setActiveTemplate(activeTemplate || null);
+        setActiveChecklistId(activeChecklistId || undefined);
+        setEditTemplateId(editTemplateId || undefined);
+      }
+    };
+
+    // Initial state
+    window.history.replaceState({ 
+      page: 'templates', 
+      activeTemplate: null, 
+      activeChecklistId: undefined, 
+      editTemplateId: undefined 
+    }, '', '');
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (isInternalNav.current) {
+      isInternalNav.current = false;
+      return;
+    }
+
+    const currentState = {
+      page: currentPage,
+      activeTemplate,
+      activeChecklistId,
+      editTemplateId
+    };
+
+    // Only push if different from current history state
+    const historyState = window.history.state;
+    if (JSON.stringify(historyState) !== JSON.stringify(currentState)) {
+      window.history.pushState(currentState, '', '');
+    }
+  }, [currentPage, activeTemplate, activeChecklistId, editTemplateId]);
+
   const fetchResponses = async () => {
     try {
       const resps = await supabaseService.getResponses();
