@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChecklistTemplate, ChecklistResponse, Stage, Question, ExternalDataRow } from '../types';
 import { supabaseService } from '../services/supabaseService';
 import { generateChecklistPDF } from '../utils/pdfGenerator';
@@ -614,44 +615,118 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
         </div>
       )}
 
-      <header className="flex justify-between items-center sticky top-0 bg-gray-50/95 py-3 z-30 border-b px-2 backdrop-blur-sm">
-        <button onClick={handleExit} className="text-orange-600 font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-transform">← Salvar e Sair</button>
-        <div className="text-center">
-          <h2 className="text-xs font-black uppercase text-gray-900 line-clamp-1">{template.title}</h2>
-          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">
-            {currentStage.name} ({currentStageIdx + 1}/{template.stages.length})
-            {isStageLocked && <span className="ml-2 text-green-600">🔒 CONCLUÍDO</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 min-w-[60px] justify-end">
-          {!isStageLocked && (
-            <button 
-              onClick={() => {
-                setDivergenceStageId(currentStage.id);
-                setShowDivergenceModal(true);
-              }}
-              className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 rounded-full border border-red-100 hover:bg-red-100 transition-colors shadow-sm"
-              title="Relatar Divergência"
-            >
-              ⚠️
+      <div className="sticky top-0 z-30 bg-gray-50/95 backdrop-blur-sm border-b">
+        <div className="max-w-4xl mx-auto px-4">
+          <header className="flex justify-between items-center py-4">
+            <button onClick={handleExit} className="text-orange-600 font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-1">
+              <span className="text-lg">←</span> Salvar e Sair
             </button>
-          )}
-          {saveMessage && (
-            <span className={`text-[8px] font-black uppercase tracking-widest animate-fadeIn ${saveMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-              {saveMessage.text}
-            </span>
-          )}
-          <button 
-            onClick={() => persistData({ forceTimeUpdate: true })}
-            disabled={isSaving || !dataLoadedRef.current}
-            className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:underline disabled:opacity-50"
-          >
-            {isSaving ? 'Gravando...' : '💾 Salvar'}
-          </button>
-        </div>
-      </header>
+            <div className="flex items-center gap-3">
+              {saveMessage && (
+                <span className={`text-[8px] font-black uppercase tracking-widest animate-fadeIn ${saveMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                  {saveMessage.text}
+                </span>
+              )}
+              <button 
+                onClick={() => persistData({ forceTimeUpdate: true })}
+                disabled={isSaving || !dataLoadedRef.current}
+                className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:underline disabled:opacity-50 flex items-center gap-1"
+              >
+                {isSaving ? 'Gravando...' : '💾 Salvar'}
+              </button>
+            </div>
+          </header>
 
-      {template.externalData && template.externalData.length > 0 && !hasOSQuestion && (
+          <div className="pb-4 space-y-3">
+            <div className="flex items-end justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 bg-orange-600 text-white text-[9px] font-black rounded-md uppercase tracking-widest">
+                    Etapa {currentStageIdx + 1} de {template.stages.length}
+                  </span>
+                  {isStageLocked && (
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-black rounded-md uppercase tracking-widest flex items-center gap-1">
+                      🔒 Concluído
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-xl font-black uppercase text-gray-900 tracking-tighter leading-none">
+                  {currentStage.name}
+                </h2>
+              </div>
+              
+              {!isStageLocked && (
+                <button 
+                  onClick={() => {
+                    setDivergenceStageId(currentStage.id);
+                    setShowDivergenceModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-2xl border-2 border-red-100 hover:bg-red-100 transition-all shadow-sm active:scale-95"
+                >
+                  <span className="text-sm">⚠️</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Alerta</span>
+                </button>
+              )}
+            </div>
+
+            {/* Progress Bar & Stage List */}
+            <div className="space-y-2">
+              <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden flex">
+                {template.stages.map((s, idx) => {
+                  const isCompleted = response.lockedStages?.includes(s.id);
+                  const isCurrent = idx === currentStageIdx;
+                  return (
+                    <div 
+                      key={s.id}
+                      className={`h-full flex-1 border-r border-white last:border-0 transition-all duration-500 ${
+                        isCurrent ? 'bg-orange-500' : isCompleted ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              
+              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {template.stages.map((s, idx) => {
+                  const isCompleted = response.lockedStages?.includes(s.id);
+                  const isCurrent = idx === currentStageIdx;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        // Only allow jumping to locked stages or the current/next available
+                        // For simplicity, let's just allow jumping anywhere for now as requested for "identification"
+                        setCurrentStageIdx(idx);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border-2 ${
+                        isCurrent 
+                          ? 'bg-orange-600 text-white border-orange-600 shadow-md scale-105' 
+                          : isCompleted 
+                            ? 'bg-green-50 text-green-700 border-green-100' 
+                            : 'bg-white text-gray-400 border-gray-100'
+                      }`}
+                    >
+                      {isCompleted ? '✓ ' : ''}{s.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={currentStage.id}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-6"
+        >
+          {template.externalData && template.externalData.length > 0 && !hasOSQuestion && (
         <section className="bg-white p-6 rounded-3xl shadow-sm border border-blue-100 space-y-4">
           <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Selecionar OS do Carregamento</label>
           <select 
@@ -895,6 +970,9 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           );
         })}
       </div>
+
+        </motion.div>
+      </AnimatePresence>
 
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t z-50">
         <div className="max-w-4xl mx-auto flex gap-3">

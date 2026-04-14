@@ -276,34 +276,52 @@ const App: React.FC = () => {
                       <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest text-center">Nenhum resultado encontrado</p>
                   </div>
               ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="space-y-4">
                 {filteredResponses.map(r => {
                   const t = templates.find(temp => temp.id === r.templateId);
                   const isDraft = r.status === 'DRAFT';
                   return (
-                    <div key={r.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden hover:shadow-2xl transition-all relative group/card">
-                      <div className="h-40 bg-gray-50 relative overflow-hidden shrink-0">
-                        {t?.image ? <img src={t.image} className="w-full h-full object-cover opacity-80" alt={t.title} /> : <div className="w-full h-full flex items-center justify-center text-gray-200 text-5xl">📦</div>}
-                        <div className="absolute top-6 left-6 flex gap-2">
-                           <span className="text-[10px] font-black bg-white text-orange-600 px-3 py-1.5 rounded-xl uppercase shadow-xl border border-orange-50">#{r.customId || 'S/ID'}</span>
-                        </div>
-                        <div className="absolute top-6 right-6 opacity-0 group-hover/card:opacity-100 transition-opacity">
-                           <button 
-                             onClick={(e) => { e.stopPropagation(); handleDeleteResponse(r.id); }}
-                             className="bg-white/90 backdrop-blur p-2 rounded-xl shadow-lg text-red-500 hover:bg-red-500 hover:text-white transition-all active:scale-90"
-                             title="Excluir Registro"
-                           >
-                             <span className="text-xs">🗑️</span>
-                           </button>
-                        </div>
+                    <div 
+                      key={r.id} 
+                      onClick={() => { if(t) { setActiveTemplate(t); setActiveChecklistId(r.id); setCurrentPage(isDraft ? 'run_checklist' : 'view_checklist'); } }}
+                      className="bg-white rounded-3xl shadow-sm border border-gray-100 flex items-center p-4 hover:shadow-xl transition-all cursor-pointer group/card relative"
+                    >
+                      <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-50 rounded-2xl overflow-hidden shrink-0 border border-gray-100">
+                        {t?.image ? (
+                          <img src={t.image} className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-500" alt={t.title} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300 text-2xl">📦</div>
+                        )}
                       </div>
-                      <div className="p-8 flex flex-col justify-between flex-1">
-                        <div>
-                          <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${!isDraft ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{!isDraft ? 'Concluído' : 'Rascunho'}</span>
-                          <h3 className="text-base font-black text-gray-800 mb-1 truncate uppercase tracking-tighter mt-2">{t?.title || 'Checklist'}</h3>
-                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Atualizado: {new Date(r.updatedAt).toLocaleDateString('pt-BR')}</p>
+                      
+                      <div className="ml-4 md:ml-6 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${!isDraft ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                            {!isDraft ? 'Concluído' : 'Rascunho'}
+                          </span>
+                          <span className="text-[8px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md uppercase tracking-widest">
+                            #{r.customId || 'S/ID'}
+                          </span>
                         </div>
-                        <button onClick={() => { if(t) { setActiveTemplate(t); setActiveChecklistId(r.id); setCurrentPage(isDraft ? 'run_checklist' : 'view_checklist'); } }} className={`mt-6 w-full py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl transition-all tracking-widest ${isDraft ? 'bg-orange-600 text-white' : 'bg-gray-900 text-white'}`}>{isDraft ? 'Retomar' : 'Ver Detalhes'}</button>
+                        <h3 className="text-sm md:text-base font-black text-gray-800 truncate uppercase tracking-tighter">
+                          {t?.title || 'Checklist'}
+                        </h3>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                          {new Date(r.updatedAt).toLocaleDateString('pt-BR')} às {new Date(r.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 ml-4">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteResponse(r.id); }}
+                          className="p-3 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all active:scale-90"
+                          title="Excluir Registro"
+                        >
+                          <span className="text-sm">🗑️</span>
+                        </button>
+                        <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover/card:bg-orange-600 group-hover/card:text-white transition-all">
+                          <span className="text-lg font-bold">→</span>
+                        </div>
                       </div>
                     </div>
                   );
