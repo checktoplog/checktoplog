@@ -73,6 +73,7 @@ export interface ChecklistResponse {
   currentStageId: string;
   data: Record<string, any>; 
   stageTimeSpent?: Record<string, number>; 
+  lockedStages?: string[]; // IDs of stages that are finalized and cannot be edited
   divergences?: Record<string, Divergence[]>; // Key is stageId
   externalDataRow?: ExternalDataRow;
   createdAt: string;

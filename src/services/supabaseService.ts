@@ -381,6 +381,7 @@ export const supabaseService = {
         currentStageId: r.current_stage_id,
         data: r.data,
         stageTimeSpent: r.stage_time_spent,
+        lockedStages: r.locked_stages,
         divergences: r.divergences,
         externalDataRow: r.external_data_row,
         createdAt: r.created_at,
@@ -453,7 +454,7 @@ export const supabaseService = {
         
         // Try local detail cache if server fails
         const detail = getResponseDetail(id);
-        if (detail && detail.data) return detail;
+        if (detail) return detail;
         return null;
       }
       
@@ -465,6 +466,7 @@ export const supabaseService = {
         currentStageId: r.current_stage_id,
         data: r.data || {},
         stageTimeSpent: r.stage_time_spent,
+        lockedStages: r.locked_stages || [],
         divergences: r.divergences || {},
         externalDataRow: r.external_data_row,
         createdAt: r.created_at,
@@ -506,6 +508,7 @@ export const supabaseService = {
         current_stage_id: response.currentStageId,
         data: response.data,
         stage_time_spent: response.stageTimeSpent,
+        locked_stages: response.lockedStages,
         divergences: response.divergences,
         external_data_row: response.externalDataRow,
         created_at: response.createdAt,

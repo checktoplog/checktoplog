@@ -121,6 +121,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   const [showErrors, setShowErrors] = useState(false);
   const [showDivergenceModal, setShowDivergenceModal] = useState(false);
   const [divergenceStageId, setDivergenceStageId] = useState<string | null>(null);
+  const [showStageConfirm, setShowStageConfirm] = useState(false);
   
   const stageStartTimeRef = useRef(Date.now());
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -179,17 +180,10 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
             }
           }
           
-          if (existing.data && Object.keys(existing.data).length > 0) {
-            setResponse(existing);
-            const sIdx = template.stages.findIndex(s => s.id === existing.currentStageId);
-            if (sIdx >= 0) setCurrentStageIdx(sIdx);
-            dataLoadedRef.current = true;
-          } else {
-            console.warn("Checklist data is missing or incomplete.");
-            alert("Não foi possível carregar os dados completos deste checklist. Verifique sua conexão.");
-            onBack();
-            return;
-          }
+          setResponse(existing);
+          const sIdx = template.stages.findIndex(s => s.id === existing.currentStageId);
+          if (sIdx >= 0) setCurrentStageIdx(sIdx);
+          dataLoadedRef.current = true;
         } else {
           dataLoadedRef.current = true;
         }
@@ -204,7 +198,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     }
   }, [editId, template]);
 
-  const persistData = async (options?: { forceTimeUpdate?: boolean, finalStatus?: 'DRAFT' | 'COMPLETED', pdfUrl?: string, customData?: any }) => {
+  const persistData = async (options?: { forceTimeUpdate?: boolean, finalStatus?: 'DRAFT' | 'COMPLETED', pdfUrl?: string, customData?: any, lockStageId?: string }) => {
     if (!dataLoadedRef.current) return;
 
     if (!options?.finalStatus && saveInProgressRef.current) {
@@ -214,7 +208,12 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     const performSave = async () => {
       setIsSaving(true);
       const updatedTime = { ...(response.stageTimeSpent || {}) };
+      const updatedLocked = [...(response.lockedStages || [])];
       
+      if (options?.lockStageId && !updatedLocked.includes(options.lockStageId)) {
+        updatedLocked.push(options.lockStageId);
+      }
+
       if (options?.forceTimeUpdate) {
         const stageId = template.stages[currentStageIdx].id;
         updatedTime[stageId] = (updatedTime[stageId] || 0) + (Date.now() - stageStartTimeRef.current);
@@ -226,6 +225,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
         data: options?.customData || response.data,
         status: options?.finalStatus || response.status,
         stageTimeSpent: updatedTime,
+        lockedStages: updatedLocked,
         currentStageId: template.stages[currentStageIdx].id,
         updatedAt: new Date().toISOString(),
         completedAt: options?.finalStatus === 'COMPLETED' ? new Date().toISOString() : response.completedAt,
@@ -313,7 +313,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   };
 
   const updateQ = (qId: string, updates: any) => {
-    if (response.status === 'COMPLETED') return;
+    if (response.status === 'COMPLETED' || isStageLocked) return;
     setResponse(prev => {
       const stageId = currentStage.id;
       const currentData = (prev.data || {})[stageId]?.[qId];
@@ -335,7 +335,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   };
 
   const handleImageUpload = async (qId: string, files: FileList | null) => {
-    if (!files) return;
+    if (!files || isStageLocked) return;
     
     setLoading(true);
     try {
@@ -382,7 +382,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   };
 
   const handleDocUpload = async (qId: string, files: FileList | null) => {
-    if (!files) return;
+    if (!files || isStageLocked) return;
     
     const newDocs = Array.from(files).map(file => ({
       name: file.name,
@@ -582,6 +582,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   };
 
   const currentStage = template.stages[currentStageIdx];
+  const isStageLocked = response.lockedStages?.includes(currentStage.id);
   const currentQData = (qId: string) => getQData(response.data, currentStage.id, qId);
 
   const handleOSSelect = (osNum: string) => {
@@ -617,19 +618,24 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
         <button onClick={handleExit} className="text-orange-600 font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-transform">← Salvar e Sair</button>
         <div className="text-center">
           <h2 className="text-xs font-black uppercase text-gray-900 line-clamp-1">{template.title}</h2>
-          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{currentStage.name} ({currentStageIdx + 1}/{template.stages.length})</p>
+          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">
+            {currentStage.name} ({currentStageIdx + 1}/{template.stages.length})
+            {isStageLocked && <span className="ml-2 text-green-600">🔒 CONCLUÍDO</span>}
+          </p>
         </div>
         <div className="flex items-center gap-2 min-w-[60px] justify-end">
-          <button 
-            onClick={() => {
-              setDivergenceStageId(currentStage.id);
-              setShowDivergenceModal(true);
-            }}
-            className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 rounded-full border border-red-100 hover:bg-red-100 transition-colors shadow-sm"
-            title="Relatar Divergência"
-          >
-            ⚠️
-          </button>
+          {!isStageLocked && (
+            <button 
+              onClick={() => {
+                setDivergenceStageId(currentStage.id);
+                setShowDivergenceModal(true);
+              }}
+              className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 rounded-full border border-red-100 hover:bg-red-100 transition-colors shadow-sm"
+              title="Relatar Divergência"
+            >
+              ⚠️
+            </button>
+          )}
           {saveMessage && (
             <span className={`text-[8px] font-black uppercase tracking-widest animate-fadeIn ${saveMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
               {saveMessage.text}
@@ -688,7 +694,14 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
       <section className={`bg-white p-6 rounded-3xl shadow-sm border transition-all ${showErrors && !response.customId ? 'border-red-500 ring-2 ring-red-50' : 'border-orange-100'}`}>
         <label className="block text-[10px] font-black text-orange-600 uppercase tracking-widest mb-2">ID DO CHECKLIST (OBRIGATÓRIO)</label>
-        <input type="text" className={`w-full border-2 rounded-2xl p-4 font-black uppercase outline-none focus:border-orange-500 transition-colors ${showErrors && !response.customId ? 'border-red-200 bg-red-50' : 'border-gray-50'}`} placeholder={template.customIdPlaceholder || "EX: VEÍCULO-01"} value={response.customId} onChange={e => setResponse({...response, customId: e.target.value.toUpperCase()})} />
+        <input 
+          type="text" 
+          disabled={isStageLocked || response.lockedStages?.length > 0}
+          className={`w-full border-2 rounded-2xl p-4 font-black uppercase outline-none focus:border-orange-500 transition-colors ${showErrors && !response.customId ? 'border-red-200 bg-red-50' : 'border-gray-50'} disabled:bg-gray-100 disabled:text-gray-400`} 
+          placeholder={template.customIdPlaceholder || "EX: VEÍCULO-01"} 
+          value={response.customId} 
+          onChange={e => setResponse({...response, customId: e.target.value.toUpperCase()})} 
+        />
       </section>
 
       <div className="space-y-4">
@@ -700,9 +713,15 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                 <div className="flex-1">
                   <p className="text-[10px] font-black text-red-900 uppercase tracking-tight">Divergência Relatada</p>
                   <p className="text-xs font-bold text-red-800 mt-1">{div.comment}</p>
-                  {(div.images.length > 0 || div.videos.length > 0 || div.files.length > 0) && (
+                  {div.images.length > 0 && (
+                    <div className="grid grid-cols-5 gap-1 mt-2">
+                      {div.images.map((img: string, i: number) => (
+                        <img key={i} src={img} className="aspect-square rounded-lg object-cover border border-red-100" onClick={() => setPreviewImage(img)} />
+                      ))}
+                    </div>
+                  )}
+                  {(div.videos.length > 0 || div.files.length > 0) && (
                     <div className="flex gap-2 mt-2">
-                      {div.images.length > 0 && <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase">{div.images.length} Fotos</span>}
                       {div.videos.length > 0 && <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase">{div.videos.length} Vídeos</span>}
                       {div.files.length > 0 && <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase">{div.files.length} Arquivos</span>}
                     </div>
@@ -736,19 +755,27 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                 {q.type === 'YES_NO' && (
                   <div className="flex gap-3">
                     {['Sim', 'Não'].map(opt => (
-                      <button key={opt} onClick={() => updateQ(q.id, { val: opt })} className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase border-2 transition-all ${data.val === opt ? 'bg-orange-600 text-white border-orange-600 shadow-lg' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>{opt}</button>
+                      <button 
+                        key={opt} 
+                        disabled={isStageLocked}
+                        onClick={() => updateQ(q.id, { val: opt })} 
+                        className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase border-2 transition-all ${data.val === opt ? 'bg-orange-600 text-white border-orange-600 shadow-lg' : 'bg-gray-50 text-gray-400 border-gray-100'} disabled:opacity-70`}
+                      >
+                        {opt}
+                      </button>
                     ))}
                   </div>
                 )}
                 
-                {q.type === 'TEXT' && <textarea className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500" placeholder="Escreva aqui..." value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
-                {q.type === 'NUMBER' && <input type="number" className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500" value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
-                {q.type === 'DATE' && <input type="date" className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500" value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
+                {q.type === 'TEXT' && <textarea disabled={isStageLocked} className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500 disabled:bg-gray-100 disabled:text-gray-400" placeholder="Escreva aqui..." value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
+                {q.type === 'NUMBER' && <input disabled={isStageLocked} type="number" className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500 disabled:bg-gray-100 disabled:text-gray-400" value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
+                {q.type === 'DATE' && <input disabled={isStageLocked} type="date" className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500 disabled:bg-gray-100 disabled:text-gray-400" value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
                 
                 {q.type === 'OS' && (
                   <div className="space-y-3">
                     <select 
-                      className="w-full border-2 border-gray-100 rounded-2xl p-4 font-black uppercase outline-none focus:border-orange-500 bg-gray-50"
+                      disabled={isStageLocked}
+                      className="w-full border-2 border-gray-100 rounded-2xl p-4 font-black uppercase outline-none focus:border-orange-500 bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
                       value={data.val || ''}
                       onChange={e => {
                         const val = e.target.value;
@@ -785,11 +812,18 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                     {(q.options || []).map(opt => {
                       const sel = Array.isArray(data.val) ? data.val.includes(opt) : data.val === opt;
                       return (
-                        <button key={opt} onClick={() => {
-                          const curr = Array.isArray(data.val) ? data.val : (data.val ? [data.val] : []);
-                          const next = curr.includes(opt) ? curr.filter((v:any) => v !== opt) : [...curr, opt];
-                          updateQ(q.id, { val: next });
-                        }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase border-2 transition-all ${sel ? 'bg-orange-600 text-white border-orange-600' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>{opt}</button>
+                        <button 
+                          key={opt} 
+                          disabled={isStageLocked}
+                          onClick={() => {
+                            const curr = Array.isArray(data.val) ? data.val : (data.val ? [data.val] : []);
+                            const next = curr.includes(opt) ? curr.filter((v:any) => v !== opt) : [...curr, opt];
+                            updateQ(q.id, { val: next });
+                          }} 
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase border-2 transition-all ${sel ? 'bg-orange-600 text-white border-orange-600' : 'bg-gray-50 text-gray-400 border-gray-100'} disabled:opacity-70`}
+                        >
+                          {opt}
+                        </button>
                       );
                     })}
                   </div>
@@ -798,16 +832,18 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                 {q.type === 'SIGNATURE' && (
                    <div className="bg-gray-50 rounded-2xl p-4 flex flex-col items-center border-2 border-dashed border-gray-200">
                       {data.val ? <img src={data.val} className="max-h-24" /> : <p className="text-[10px] font-black text-gray-300 uppercase italic">Aguardando assinatura</p>}
-                      <button onClick={() => setSignatureTarget({ stageId: currentStage.id, qId: q.id })} className="mt-3 text-orange-600 font-black text-[9px] uppercase tracking-widest">🖊️ Abrir Painel</button>
+                      {!isStageLocked && <button onClick={() => setSignatureTarget({ stageId: currentStage.id, qId: q.id })} className="mt-3 text-orange-600 font-black text-[9px] uppercase tracking-widest">🖊️ Abrir Painel</button>}
                    </div>
                 )}
 
                 {q.type === 'DOCUMENT' && (
                   <div className="space-y-2">
-                    <label className="cursor-pointer flex items-center justify-center p-4 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase gap-2 shadow-lg">
-                      <span>📁 Selecionar Arquivos</span>
-                      <input type="file" className="hidden" multiple onChange={e => handleDocUpload(q.id, e.target.files)} />
-                    </label>
+                    {!isStageLocked && (
+                      <label className="cursor-pointer flex items-center justify-center p-4 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase gap-2 shadow-lg">
+                        <span>📁 Selecionar Arquivos</span>
+                        <input type="file" className="hidden" multiple onChange={e => handleDocUpload(q.id, e.target.files)} />
+                      </label>
+                    )}
                     {data.docs?.length > 0 && (
                       <div className="p-3 bg-gray-50 rounded-xl space-y-1">
                         {data.docs.map((d:any, idx:number) => (
@@ -820,22 +856,24 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
                 {(q.type === 'IMAGE' || q.allowImage) && (
                   <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <label className="flex-1 cursor-pointer flex items-center justify-center p-4 bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase gap-2 shadow-lg active:scale-95 transition-transform">
-                        <span>📸 Câmera</span>
-                        <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleImageUpload(q.id, e.target.files)} />
-                      </label>
-                      <label className="flex-1 cursor-pointer flex items-center justify-center p-4 bg-gray-100 text-gray-600 rounded-2xl border-2 border-gray-200 font-black text-[10px] uppercase gap-2 active:scale-95 transition-transform">
-                        <span>🖼️ Galeria</span>
-                        <input type="file" className="hidden" accept="image/*" multiple onChange={e => handleImageUpload(q.id, e.target.files)} />
-                      </label>
-                    </div>
+                    {!isStageLocked && (
+                      <div className="flex gap-2">
+                        <label className="flex-1 cursor-pointer flex items-center justify-center p-4 bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase gap-2 shadow-lg active:scale-95 transition-transform">
+                          <span>📸 Câmera</span>
+                          <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleImageUpload(q.id, e.target.files)} />
+                        </label>
+                        <label className="flex-1 cursor-pointer flex items-center justify-center p-4 bg-gray-100 text-gray-600 rounded-2xl border-2 border-gray-200 font-black text-[10px] uppercase gap-2 active:scale-95 transition-transform">
+                          <span>🖼️ Galeria</span>
+                          <input type="file" className="hidden" accept="image/*" multiple onChange={e => handleImageUpload(q.id, e.target.files)} />
+                        </label>
+                      </div>
+                    )}
                     {data.imgs?.length > 0 && (
                       <div className="grid grid-cols-4 gap-2 pt-2">
                         {data.imgs.map((img:string, i:number) => (
                           <div key={i} className="relative aspect-square">
                             <img src={img} className="w-full h-full object-cover rounded-xl border border-gray-100 shadow-sm" onClick={() => setPreviewImage(img)} />
-                            <button onClick={(e) => { e.stopPropagation(); const n = [...data.imgs]; n.splice(i, 1); updateQ(q.id, { imgs: n }); }} className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold">×</button>
+                            {!isStageLocked && <button onClick={(e) => { e.stopPropagation(); const n = [...data.imgs]; n.splice(i, 1); updateQ(q.id, { imgs: n }); }} className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full text-[12px] flex items-center justify-center font-bold">×</button>}
                           </div>
                         ))}
                       </div>
@@ -843,7 +881,15 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                   </div>
                 )}
 
-                {q.allowNote && <input className="w-full bg-gray-50 border-none rounded-xl p-3 text-[10px] font-bold" placeholder="Observação..." value={data.note || ''} onChange={e => updateQ(q.id, { note: e.target.value })} />}
+                {q.allowNote && (
+                  <input 
+                    disabled={isStageLocked}
+                    className="w-full bg-gray-50 border-none rounded-xl p-3 text-[10px] font-bold disabled:opacity-50" 
+                    placeholder="Observação..." 
+                    value={data.note || ''} 
+                    onChange={e => updateQ(q.id, { note: e.target.value })} 
+                  />
+                )}
               </div>
             </div>
           );
@@ -854,15 +900,83 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
         <div className="max-w-4xl mx-auto flex gap-3">
           {currentStageIdx > 0 && <button onClick={() => setCurrentStageIdx(currentStageIdx - 1)} className="flex-1 py-4 rounded-2xl bg-white border-2 border-gray-200 font-black text-[10px] uppercase tracking-widest">Anterior</button>}
           {currentStageIdx < template.stages.length - 1 ? (
-            <button onClick={async () => { await persistData({forceTimeUpdate:true}); setCurrentStageIdx(currentStageIdx+1); setShowErrors(false); }} className="flex-1 py-4 rounded-2xl bg-orange-600 text-white font-black text-[10px] uppercase shadow-lg tracking-widest">Próximo</button>
+            <button 
+              onClick={async () => { 
+                if (isStageLocked) {
+                  setCurrentStageIdx(currentStageIdx + 1);
+                  setShowErrors(false);
+                  return;
+                }
+                
+                const errors = template.stages[currentStageIdx].questions.filter(q => isQuestionEmpty(q, currentStage.id));
+                if (errors.length > 0) {
+                  setShowErrors(true);
+                  alert("Por favor, preencha todos os campos obrigatórios antes de prosseguir.");
+                  return;
+                }
+                setShowStageConfirm(true);
+              }} 
+              className="flex-1 py-4 rounded-2xl bg-orange-600 text-white font-black text-[10px] uppercase shadow-lg tracking-widest"
+            >
+              {isStageLocked ? 'Próximo' : 'Concluir Etapa'}
+            </button>
           ) : (
-            <button onClick={handleFinalize} className="flex-1 py-4 rounded-2xl bg-green-600 text-white font-black text-[10px] uppercase shadow-xl tracking-widest animate-pulse">Finalizar</button>
+            <button 
+              onClick={() => {
+                if (isStageLocked) {
+                  handleFinalize();
+                  return;
+                }
+                const errors = template.stages[currentStageIdx].questions.filter(q => isQuestionEmpty(q, currentStage.id));
+                if (errors.length > 0) {
+                  setShowErrors(true);
+                  alert("Por favor, preencha todos os campos obrigatórios antes de finalizar.");
+                  return;
+                }
+                setShowStageConfirm(true);
+              }} 
+              className="flex-1 py-4 rounded-2xl bg-green-600 text-white font-black text-[10px] uppercase shadow-xl tracking-widest animate-pulse"
+            >
+              {isStageLocked ? 'Finalizar Checklist' : 'Concluir e Finalizar'}
+            </button>
           )}
         </div>
       </footer>
 
       {previewImage && <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}><img src={previewImage} className="max-w-full max-h-full rounded-2xl shadow-2xl" /></div>}
       {signatureTarget && <SignatureModal onClose={() => setSignatureTarget(null)} onSave={val => { updateQ(signatureTarget.qId, { val }); setSignatureTarget(null); }} />}
+      
+      {showStageConfirm && (
+        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 text-center space-y-6">
+            <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-3xl mx-auto">❓</div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-black uppercase tracking-tighter text-gray-900">Confirmar Etapa?</h3>
+              <p className="text-xs font-bold text-gray-500 leading-relaxed">
+                Ao confirmar, esta etapa será bloqueada e <strong>não poderá ser editada novamente</strong>. Deseja prosseguir?
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowStageConfirm(false)} className="flex-1 py-4 rounded-2xl bg-gray-100 text-gray-500 font-black text-[10px] uppercase">Revisar</button>
+              <button 
+                onClick={async () => {
+                  setShowStageConfirm(false);
+                  await persistData({ forceTimeUpdate: true, lockStageId: currentStage.id });
+                  if (currentStageIdx < template.stages.length - 1) {
+                    setCurrentStageIdx(currentStageIdx + 1);
+                    setShowErrors(false);
+                  } else {
+                    handleFinalize();
+                  }
+                }} 
+                className="flex-1 py-4 rounded-2xl bg-orange-600 text-white font-black text-[10px] uppercase shadow-lg"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showDivergenceModal && divergenceStageId && (
         <DivergenceModal 
           stageId={divergenceStageId}
@@ -871,23 +985,32 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
             setDivergenceStageId(null);
           }}
           onSave={async (div) => {
-            const currentDivs = response.divergences || {};
-            const stageDivs = currentDivs[divergenceStageId] || [];
-            const updatedDivs = {
-              ...currentDivs,
-              [divergenceStageId]: [...stageDivs, div]
-            };
-            
-            const updatedResponse = {
-              ...response,
-              divergences: updatedDivs
-            };
-            
-            setResponse(updatedResponse);
-            await supabaseService.saveResponse(updatedResponse);
-            
-            setShowDivergenceModal(false);
-            setDivergenceStageId(null);
+            try {
+              setLoading(true);
+              const currentDivs = { ...(response.divergences || {}) };
+              const stageDivs = [...(currentDivs[divergenceStageId] || [])];
+              
+              const updatedDivs = {
+                ...currentDivs,
+                [divergenceStageId]: [...stageDivs, div]
+              };
+              
+              const updatedResponse = {
+                ...response,
+                divergences: updatedDivs
+              };
+              
+              setResponse(updatedResponse);
+              await supabaseService.saveResponse(updatedResponse);
+              
+              setShowDivergenceModal(false);
+              setDivergenceStageId(null);
+            } catch (err) {
+              console.error("Erro ao salvar divergência:", err);
+              alert("Erro ao salvar o alerta. Verifique sua conexão.");
+            } finally {
+              setLoading(false);
+            }
           }}
         />
       )}
