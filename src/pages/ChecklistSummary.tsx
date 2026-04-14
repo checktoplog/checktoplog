@@ -15,6 +15,7 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
   const [loading, setLoading] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
 
   useEffect(() => {
     const fetchResponse = async () => {
@@ -48,6 +49,20 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
       alert('Erro ao excluir o checklist.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleToggleResolution = async () => {
+    if (!response) return;
+    setIsResolving(true);
+    try {
+      const updated = { ...response, divergenceResolved: !response.divergenceResolved };
+      await supabaseService.saveResponse(updated);
+      setResponse(updated);
+    } catch (err) {
+      alert('Erro ao atualizar status da divergência.');
+    } finally {
+      setIsResolving(false);
     }
   };
 
@@ -94,6 +109,19 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
           <h2 className="text-2xl font-black uppercase text-gray-900">Relatório #{response.customId}</h2>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
+          {Object.keys(response.divergences || {}).some(k => response.divergences![k].length > 0) && (
+            <button 
+              onClick={handleToggleResolution} 
+              disabled={isResolving}
+              className={`flex-1 md:flex-none px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-50 ${
+                response.divergenceResolved 
+                  ? 'bg-green-600 text-white shadow-lg shadow-green-100' 
+                  : 'bg-red-600 text-white shadow-lg shadow-red-100'
+              }`}
+            >
+              {isResolving ? 'Processando...' : response.divergenceResolved ? '✅ Resolvido' : '⚠️ Pendente'}
+            </button>
+          )}
           <button onClick={handleDelete} disabled={isDeleting} className="flex-1 md:flex-none bg-red-50 text-red-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all disabled:opacity-50">
             {isDeleting ? 'Excluindo...' : '🗑️ Excluir'}
           </button>

@@ -302,6 +302,13 @@ const App: React.FC = () => {
                           <span className="text-[8px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md uppercase tracking-widest">
                             #{r.customId || 'S/ID'}
                           </span>
+                          {Object.keys(r.divergences || {}).some(k => r.divergences![k].length > 0) && (
+                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest flex items-center gap-1 ${
+                              r.divergenceResolved ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100 animate-pulse'
+                            }`}>
+                              {r.divergenceResolved ? '✅ Resolvido' : '⚠️ Divergência'}
+                            </span>
+                          )}
                         </div>
                         <h3 className="text-sm md:text-base font-black text-gray-800 truncate uppercase tracking-tighter">
                           {t?.title || 'Checklist'}
