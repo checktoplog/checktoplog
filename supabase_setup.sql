@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.responses (
   divergences JSONB DEFAULT '{}'::jsonb,
   divergence_resolved BOOLEAN DEFAULT false,
   external_data_row JSONB,
+  external_data_rows JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   completed_at TIMESTAMP WITH TIME ZONE,
