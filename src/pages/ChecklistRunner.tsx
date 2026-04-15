@@ -113,6 +113,11 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     };
   });
 
+  const responseRef = useRef(response);
+  useEffect(() => {
+    responseRef.current = response;
+  }, [response]);
+
   const [currentStageIdx, setCurrentStageIdx] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -182,7 +187,10 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
             }
           }
           
-          setResponse(existing);
+          setResponse({
+            ...existing,
+            externalDataRows: existing.externalDataRows || (existing.externalDataRow ? [existing.externalDataRow] : [])
+          });
           const sIdx = template.stages.findIndex(s => s.id === existing.currentStageId);
           if (sIdx >= 0) setCurrentStageIdx(sIdx);
           dataLoadedRef.current = true;
@@ -209,8 +217,11 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
     const performSave = async () => {
       setIsSaving(true);
-      const updatedTime = { ...(response.stageTimeSpent || {}) };
-      const updatedLocked = [...(response.lockedStages || [])];
+      // Use the latest response from ref to avoid race conditions
+      const currentResponse = responseRef.current;
+      
+      const updatedTime = { ...(currentResponse.stageTimeSpent || {}) };
+      const updatedLocked = [...(currentResponse.lockedStages || [])];
       
       if (options?.lockStageId && !updatedLocked.includes(options.lockStageId)) {
         updatedLocked.push(options.lockStageId);
@@ -223,20 +234,33 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       }
 
       const dataToSave: ChecklistResponse = {
-        ...response,
-        data: options?.customData || response.data,
-        status: options?.finalStatus || response.status,
+        ...currentResponse,
+        data: options?.customData || currentResponse.data,
+        status: options?.finalStatus || currentResponse.status,
         stageTimeSpent: updatedTime,
         lockedStages: updatedLocked,
         currentStageId: template.stages[currentStageIdx].id,
         updatedAt: new Date().toISOString(),
-        completedAt: options?.finalStatus === 'COMPLETED' ? new Date().toISOString() : response.completedAt,
-        pdfUrl: options?.pdfUrl !== undefined ? options.pdfUrl : response.pdfUrl
+        completedAt: options?.finalStatus === 'COMPLETED' ? new Date().toISOString() : currentResponse.completedAt,
+        pdfUrl: options?.pdfUrl !== undefined ? options.pdfUrl : currentResponse.pdfUrl
       };
 
       try {
         await supabaseService.saveResponse(dataToSave);
-        setResponse(dataToSave);
+        // Update state with the saved data, but merge it to preserve any changes that happened during save
+        setResponse(prev => {
+          // If the ID changed or something critical, we might need more complex logic,
+          // but here we just want to ensure updatedAt and status are synced.
+          return {
+            ...prev,
+            updatedAt: dataToSave.updatedAt,
+            status: dataToSave.status,
+            stageTimeSpent: dataToSave.stageTimeSpent,
+            lockedStages: dataToSave.lockedStages,
+            pdfUrl: dataToSave.pdfUrl
+          };
+        });
+        
         if (options?.forceTimeUpdate) {
           setSaveMessage({ type: 'success', text: 'Alterações salvas!' });
           setTimeout(() => setSaveMessage(null), 2000);
@@ -258,9 +282,8 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   useEffect(() => {
     if (!dataLoadedRef.current) return;
     const currentRows = response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : []);
-    if (currentRows.length === 0) return;
-
     const combinedOS = currentRows.map(r => r.os).join(', ');
+    
     let changed = false;
     const newData = { ...response.data };
 
@@ -590,15 +613,21 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
   const handleOSSelect = (osNum: string) => {
     if (!osNum) return;
-    const row = template.externalData?.find(r => r.os === osNum);
+    console.log("Selecionando OS:", osNum);
+    const row = template.externalData?.find(r => String(r.os) === String(osNum));
     if (row) {
       setResponse(prev => {
         const currentRows = prev.externalDataRows || (prev.externalDataRow ? [prev.externalDataRow] : []);
         // Avoid duplicates
-        if (currentRows.some(r => r.os === osNum)) return prev;
+        if (currentRows.some(r => String(r.os) === String(osNum))) {
+          console.log("OS já selecionada:", osNum);
+          return prev;
+        }
         
         const newRows = [...currentRows, row];
         const combinedIds = newRows.map(r => r.os).join(', ');
+        
+        console.log("Novas OSs selecionadas:", newRows.length);
         
         return {
           ...prev,
@@ -607,13 +636,15 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           externalDataRows: newRows
         };
       });
+    } else {
+      console.warn("OS não encontrada no template:", osNum);
     }
   };
 
   const removeOS = (osNum: string) => {
     setResponse(prev => {
       const currentRows = prev.externalDataRows || (prev.externalDataRow ? [prev.externalDataRow] : []);
-      const newRows = currentRows.filter(r => r.os !== osNum);
+      const newRows = currentRows.filter(r => String(r.os) !== String(osNum));
       const combinedIds = newRows.map(r => r.os).join(', ');
       
       return {
@@ -749,58 +780,51 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          {template.externalData && template.externalData.length > 0 && !hasOSQuestion && (
-        <section className="bg-white p-6 rounded-3xl shadow-sm border border-blue-100 space-y-4">
-          <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Selecionar OS do Carregamento</label>
-          <div className="flex gap-2">
-            <select 
-              className="flex-1 border-2 border-blue-50 rounded-2xl p-4 font-black uppercase outline-none focus:border-blue-500 bg-blue-50/30"
-              value=""
-              onChange={e => handleOSSelect(e.target.value)}
-            >
-              <option value="">Adicionar OS...</option>
-              {template.externalData.map(row => (
-                <option key={row.os} value={row.os}>{row.os} - {row.cliente}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="space-y-3">
-            {(response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).map((row, idx) => (
-              <div key={row.os} className="relative bg-blue-50/50 rounded-2xl border border-blue-100 p-4 animate-fadeIn">
-                <button 
-                  onClick={() => removeOS(row.os)}
-                  className="absolute top-2 right-2 w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-200 transition-colors"
-                >
-                  ×
-                </button>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[8px] font-black text-blue-400 uppercase">OS #{idx + 1}</p>
-                    <p className="text-[10px] font-black text-blue-900 uppercase font-mono">{row.os}</p>
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-black text-blue-400 uppercase">Doca</p>
-                    <p className="text-[10px] font-black text-blue-900 uppercase">{row.doca || '---'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-black text-blue-400 uppercase">Veículo</p>
-                    <p className="text-[10px] font-black text-blue-900 uppercase">{row.veiculo || '---'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-black text-blue-400 uppercase">Produto</p>
-                    <p className="text-[10px] font-black text-blue-900 uppercase line-clamp-1">{row.cod_produto || ''} {row.desc_produto || ''}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-[8px] font-black text-blue-400 uppercase">Cliente</p>
-                    <p className="text-[10px] font-black text-blue-900 uppercase truncate">{row.cliente}</p>
-                  </div>
-                </div>
+          {template.externalData && template.externalData.length > 0 && (
+            <section className="bg-white p-4 rounded-3xl shadow-sm border border-blue-100 space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                  {hasOSQuestion ? 'OS Selecionadas' : 'Selecionar OS do Carregamento'}
+                </label>
+                {hasOSQuestion && (response.externalDataRows?.length || 0) === 0 && (
+                  <span className="text-[8px] font-bold text-orange-500 animate-pulse uppercase">Selecione na questão de OS</span>
+                )}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+
+              {(!hasOSQuestion || (response.externalDataRows?.length || 0) === 0) && !isStageLocked && (
+                <div className="flex gap-2">
+                  <select 
+                    className="flex-1 border-2 border-blue-50 rounded-2xl p-4 font-black uppercase outline-none focus:border-blue-500 bg-blue-50/30 text-xs"
+                    value=""
+                    onChange={e => handleOSSelect(e.target.value)}
+                  >
+                    <option value="">Adicionar OS...</option>
+                    {template.externalData.map(row => (
+                      <option key={row.os} value={row.os}>{row.os} - {row.cliente}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {(response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).map((row) => (
+                    <div key={row.os} className="bg-blue-50 text-blue-700 px-3 py-2 rounded-xl border border-blue-100 flex items-center gap-2 animate-fadeIn">
+                      <span className="text-[10px] font-black font-mono">{row.os}</span>
+                      {!isStageLocked && (
+                        <button 
+                          onClick={() => removeOS(row.os)}
+                          className="w-4 h-4 bg-blue-200 text-blue-600 rounded-full flex items-center justify-center text-[10px] font-bold hover:bg-red-100 hover:text-red-600 transition-colors"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
       <section className={`bg-white p-6 rounded-3xl shadow-sm border transition-all ${showErrors && !response.customId ? 'border-red-500 ring-2 ring-red-50' : 'border-orange-100'}`}>
         <label className="block text-[10px] font-black text-orange-600 uppercase tracking-widest mb-2">ID DO CHECKLIST (OBRIGATÓRIO)</label>
@@ -882,38 +906,61 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                 {q.type === 'DATE' && <input disabled={isStageLocked} type="date" className="w-full rounded-2xl border-2 border-gray-100 p-4 text-sm font-bold outline-none focus:border-orange-500 disabled:bg-gray-100 disabled:text-gray-400" value={data.val || ''} onChange={e => updateQ(q.id, { val: e.target.value })} />}
                 
                 {q.type === 'OS' && (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <select 
                       disabled={isStageLocked}
                       className="w-full border-2 border-gray-100 rounded-2xl p-4 font-black uppercase outline-none focus:border-orange-500 bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
-                      value={data.val || ''}
-                      onChange={e => {
-                        const val = e.target.value;
-                        updateQ(q.id, { val });
-                        handleOSSelect(val);
-                      }}
+                      value=""
+                      onChange={e => handleOSSelect(e.target.value)}
                     >
-                      <option value="">Selecione uma OS...</option>
+                      <option value="">Adicionar OS...</option>
                       {(template.externalData || []).map(row => (
                         <option key={row.os} value={row.os}>{row.os} - {row.cliente}</option>
                       ))}
                     </select>
-                    {data.val && template.externalData?.find(r => r.os === data.val) && (
-                      <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 text-[10px] font-black uppercase text-blue-900 space-y-1">
-                        {(() => {
-                          const row = template.externalData.find(r => r.os === data.val);
-                          return row ? (
-                            <>
-                              <p><span className="text-blue-400">Doca:</span> {row.doca || '---'}</p>
-                              <p><span className="text-blue-400">Programa:</span> {row.tipo_programa}</p>
-                              <p><span className="text-blue-400">Veículo:</span> {row.veiculo || '---'}</p>
-                              <p><span className="text-blue-400">Produto:</span> {row.cod_produto || ''} {row.desc_produto || ''}</p>
-                              <p><span className="text-blue-400">Cliente:</span> {row.cliente}</p>
-                            </>
-                          ) : null;
-                        })()}
-                      </div>
-                    )}
+
+                    <div className="space-y-3">
+                      {(response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).map((row, idx) => (
+                        <div key={row.os} className="relative bg-blue-50/50 rounded-2xl border border-blue-100 p-4 animate-fadeIn">
+                          {!isStageLocked && (
+                            <button 
+                              onClick={() => removeOS(row.os)}
+                              className="absolute top-2 right-2 w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-200 transition-colors"
+                            >
+                              ×
+                            </button>
+                          )}
+                          <div className="grid grid-cols-2 gap-3 text-[10px] font-black uppercase text-blue-900">
+                            <div>
+                              <p className="text-[8px] text-blue-400">OS #{idx + 1}</p>
+                              <p>{row.os}</p>
+                            </div>
+                            <div>
+                              <p className="text-[8px] text-blue-400">Doca</p>
+                              <p>{row.doca || '---'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[8px] text-blue-400">Veículo</p>
+                              <p>{row.veiculo || '---'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[8px] text-blue-400">Produto</p>
+                              <p className="truncate">{row.cod_produto || ''} {row.desc_produto || ''}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-[8px] text-blue-400">Cliente</p>
+                              <p className="truncate">{row.cliente}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {(response.externalDataRows || []).length === 0 && !response.externalDataRow && (
+                        <p className="text-center py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
+                          Nenhuma OS selecionada
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 

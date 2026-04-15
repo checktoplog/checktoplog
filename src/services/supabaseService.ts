@@ -516,7 +516,7 @@ export const supabaseService = {
         divergences: response.divergences,
         divergence_resolved: response.divergenceResolved || false,
         external_data_row: response.externalDataRow,
-        external_data_rows: response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : []),
+        external_data_rows: Array.isArray(response.externalDataRows) ? response.externalDataRows : (response.externalDataRow ? [response.externalDataRow] : []),
         created_at: response.createdAt,
         updated_at: new Date().toISOString(),
         completed_at: response.completedAt,
