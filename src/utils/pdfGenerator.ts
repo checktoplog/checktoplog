@@ -62,17 +62,27 @@ export const generateChecklistPDF = async (response: ChecklistResponse, template
 
   let yPos = 95;
 
-  if (response.externalDataRow) {
+  const osRows = response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : []);
+  if (osRows.length > 0) {
     doc.setFont('helvetica', 'bold');
     doc.text('DADOS DO CARREGAMENTO (OS)', 15, 92);
     doc.setFont('helvetica', 'normal');
-    doc.text(`OS: ${response.externalDataRow.os}`, 15, 98);
-    doc.text(`Doca: ${response.externalDataRow.doca || '---'}`, 15, 104);
-    doc.text(`Veículo: ${response.externalDataRow.veiculo || '---'}`, 15, 110);
-    doc.text(`Produto: ${response.externalDataRow.cod_produto || ''} ${response.externalDataRow.desc_produto || ''}`, 15, 116);
-    doc.text(`Cliente: ${response.externalDataRow.cliente}`, 15, 122);
-    doc.text(`Programa: ${response.externalDataRow.tipo_programa}`, 15, 128);
-    yPos = 140;
+    
+    osRows.forEach((row, idx) => {
+      const rowY = 98 + (idx * 35);
+      if (rowY > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.text(`OS #${idx + 1}: ${row.os}`, 15, rowY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Doca: ${row.doca || '---'} | Veículo: ${row.veiculo || '---'}`, 15, rowY + 5);
+      doc.text(`Produto: ${row.cod_produto || ''} ${row.desc_produto || ''}`, 15, rowY + 10);
+      doc.text(`Cliente: ${row.cliente}`, 15, rowY + 15);
+      doc.text(`Programa: ${row.tipo_programa}`, 15, rowY + 20);
+      yPos = rowY + 30;
+    });
   }
 
   if (!template.stages || template.stages.length === 0) {

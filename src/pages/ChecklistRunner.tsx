@@ -108,7 +108,8 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       data: initialData,
       stageTimeSpent: {},
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      externalDataRows: []
     };
   });
 
@@ -256,9 +257,10 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
 
   useEffect(() => {
     if (!dataLoadedRef.current) return;
-    const osNum = response.externalDataRow?.os;
-    if (!osNum) return;
+    const currentRows = response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : []);
+    if (currentRows.length === 0) return;
 
+    const combinedOS = currentRows.map(r => r.os).join(', ');
     let changed = false;
     const newData = { ...response.data };
 
@@ -266,10 +268,10 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
       stage.questions.forEach(q => {
         if (q.type === 'OS') {
           const currentVal = newData[stage.id]?.[q.id]?.val;
-          if (currentVal !== osNum) {
+          if (currentVal !== combinedOS) {
             if (!newData[stage.id]) newData[stage.id] = {};
             if (!newData[stage.id][q.id]) newData[stage.id][q.id] = { val: null, imgs: [], docs: [], note: '' };
-            newData[stage.id][q.id] = { ...newData[stage.id][q.id], val: osNum };
+            newData[stage.id][q.id] = { ...newData[stage.id][q.id], val: combinedOS };
             changed = true;
           }
         }
@@ -279,7 +281,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     if (changed) {
       setResponse(prev => ({ ...prev, data: newData }));
     }
-  }, [response.externalDataRow?.os, template.stages]);
+  }, [response.externalDataRows, response.externalDataRow, template.stages]);
 
   useEffect(() => {
     if (response.status === 'COMPLETED' || !dataLoadedRef.current) return;
@@ -294,7 +296,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [response.data, response.customId, response.externalDataRow, currentStageIdx]);
+  }, [response.data, response.customId, response.externalDataRow, response.externalDataRows, currentStageIdx]);
 
   const getQData = (data: any, stageId: string, qId: string) => {
     const d = (data || {})[stageId]?.[qId];
@@ -587,19 +589,40 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
   const currentQData = (qId: string) => getQData(response.data, currentStage.id, qId);
 
   const handleOSSelect = (osNum: string) => {
+    if (!osNum) return;
     const row = template.externalData?.find(r => r.os === osNum);
     if (row) {
-      setResponse(prev => ({
-        ...prev,
-        customId: row.os,
-        externalDataRow: row
-      }));
-    } else {
-      setResponse(prev => ({
-        ...prev,
-        externalDataRow: undefined
-      }));
+      setResponse(prev => {
+        const currentRows = prev.externalDataRows || (prev.externalDataRow ? [prev.externalDataRow] : []);
+        // Avoid duplicates
+        if (currentRows.some(r => r.os === osNum)) return prev;
+        
+        const newRows = [...currentRows, row];
+        const combinedIds = newRows.map(r => r.os).join(', ');
+        
+        return {
+          ...prev,
+          customId: combinedIds,
+          externalDataRow: newRows[0], // Keep first for legacy
+          externalDataRows: newRows
+        };
+      });
     }
+  };
+
+  const removeOS = (osNum: string) => {
+    setResponse(prev => {
+      const currentRows = prev.externalDataRows || (prev.externalDataRow ? [prev.externalDataRow] : []);
+      const newRows = currentRows.filter(r => r.os !== osNum);
+      const combinedIds = newRows.map(r => r.os).join(', ');
+      
+      return {
+        ...prev,
+        customId: combinedIds,
+        externalDataRow: newRows[0] || undefined,
+        externalDataRows: newRows
+      };
+    });
   };
 
   const hasOSQuestion = useMemo(() => {
@@ -729,41 +752,53 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           {template.externalData && template.externalData.length > 0 && !hasOSQuestion && (
         <section className="bg-white p-6 rounded-3xl shadow-sm border border-blue-100 space-y-4">
           <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Selecionar OS do Carregamento</label>
-          <select 
-            className="w-full border-2 border-blue-50 rounded-2xl p-4 font-black uppercase outline-none focus:border-blue-500 bg-blue-50/30"
-            value={response.externalDataRow?.os || ''}
-            onChange={e => handleOSSelect(e.target.value)}
-          >
-            <option value="">Selecione uma OS...</option>
-            {template.externalData.map(row => (
-              <option key={row.os} value={row.os}>{row.os} - {row.cliente}</option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <select 
+              className="flex-1 border-2 border-blue-50 rounded-2xl p-4 font-black uppercase outline-none focus:border-blue-500 bg-blue-50/30"
+              value=""
+              onChange={e => handleOSSelect(e.target.value)}
+            >
+              <option value="">Adicionar OS...</option>
+              {template.externalData.map(row => (
+                <option key={row.os} value={row.os}>{row.os} - {row.cliente}</option>
+              ))}
+            </select>
+          </div>
           
-          {response.externalDataRow && (
-            <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-              <div>
-                <p className="text-[8px] font-black text-blue-400 uppercase">Doca</p>
-                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.doca || '---'}</p>
+          <div className="space-y-3">
+            {(response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).map((row, idx) => (
+              <div key={row.os} className="relative bg-blue-50/50 rounded-2xl border border-blue-100 p-4 animate-fadeIn">
+                <button 
+                  onClick={() => removeOS(row.os)}
+                  className="absolute top-2 right-2 w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-200 transition-colors"
+                >
+                  ×
+                </button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[8px] font-black text-blue-400 uppercase">OS #{idx + 1}</p>
+                    <p className="text-[10px] font-black text-blue-900 uppercase font-mono">{row.os}</p>
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-black text-blue-400 uppercase">Doca</p>
+                    <p className="text-[10px] font-black text-blue-900 uppercase">{row.doca || '---'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-black text-blue-400 uppercase">Veículo</p>
+                    <p className="text-[10px] font-black text-blue-900 uppercase">{row.veiculo || '---'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-black text-blue-400 uppercase">Produto</p>
+                    <p className="text-[10px] font-black text-blue-900 uppercase line-clamp-1">{row.cod_produto || ''} {row.desc_produto || ''}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[8px] font-black text-blue-400 uppercase">Cliente</p>
+                    <p className="text-[10px] font-black text-blue-900 uppercase truncate">{row.cliente}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-[8px] font-black text-blue-400 uppercase">Programa</p>
-                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.tipo_programa}</p>
-              </div>
-              <div>
-                <p className="text-[8px] font-black text-blue-400 uppercase">Veículo</p>
-                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.veiculo || '---'}</p>
-              </div>
-              <div>
-                <p className="text-[8px] font-black text-blue-400 uppercase">Produto</p>
-                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.cod_produto || ''} {response.externalDataRow.desc_produto || ''}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-[8px] font-black text-blue-400 uppercase">Cliente</p>
-                <p className="text-[10px] font-black text-blue-900 uppercase">{response.externalDataRow.cliente}</p>
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
         </section>
       )}
 

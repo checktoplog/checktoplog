@@ -100,6 +100,7 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
   );
 
   if (!response) return null;
+  const osRows = response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : []);
 
   return (
     <div className="space-y-6 animate-fadeIn max-w-5xl mx-auto px-4 pb-20">
@@ -141,37 +142,43 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
-          {response.externalDataRow && (
+          {(response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).length > 0 && (
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 space-y-4">
               <div className="flex items-center gap-2 border-b pb-3">
                 <span className="text-orange-600">📋</span>
-                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Detalhes da Ordem de Serviço</h3>
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Ordens de Serviço ({ (response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).length })</h3>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">OS</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.os}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Doca</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.doca || '---'}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Veículo</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.veiculo || '---'}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Produto</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cod_produto} {response.externalDataRow.desc_produto}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cliente</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.cliente}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tipo Programa</p>
-                  <p className="text-xs font-bold text-gray-900">{response.externalDataRow.tipo_programa}</p>
-                </div>
+              <div className="space-y-6">
+                {(response.externalDataRows || (response.externalDataRow ? [response.externalDataRow] : [])).map((row, idx) => (
+                  <div key={row.os} className={idx > 0 ? "pt-4 border-t border-dashed border-gray-100" : ""}>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">OS #{idx + 1}</p>
+                        <p className="text-xs font-bold text-gray-900">{row.os}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Doca</p>
+                        <p className="text-xs font-bold text-gray-900">{row.doca || '---'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Veículo</p>
+                        <p className="text-xs font-bold text-gray-900">{row.veiculo || '---'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Produto</p>
+                        <p className="text-xs font-bold text-gray-900">{row.cod_produto} {row.desc_produto}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cliente</p>
+                        <p className="text-xs font-bold text-gray-900">{row.cliente}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tipo Programa</p>
+                        <p className="text-xs font-bold text-gray-900">{row.tipo_programa}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
