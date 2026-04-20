@@ -16,10 +16,23 @@ if (typeof window !== 'undefined') {
   };
 
   window.addEventListener('unhandledrejection', (event) => {
-    if (event.reason?.message?.includes?.('WebSocket closed without opened')) {
+    const reason = event.reason;
+    const msg = typeof reason === 'string' ? reason : reason?.message;
+    
+    if (msg?.includes?.('WebSocket closed without opened') || 
+        msg?.includes?.('[vite] failed to connect to websocket')) {
       event.preventDefault();
+      event.stopPropagation();
     }
   });
+
+  window.addEventListener('error', (event) => {
+    if (event.message?.includes?.('WebSocket closed without opened') || 
+        event.message?.includes?.('[vite] failed to connect to websocket')) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
 }
 
 const rootElement = document.getElementById('root');

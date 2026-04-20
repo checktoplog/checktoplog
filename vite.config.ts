@@ -9,7 +9,9 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
-        hmr: false, // Desabilita o WebSocket do Vite para limpar o terminal/console
+        hmr: {
+          overlay: false,
+        },
       },
       plugins: [react(), tailwindcss()],
       define: {
