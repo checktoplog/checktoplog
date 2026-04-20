@@ -709,7 +709,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
                 </h2>
               </div>
               
-              {!isStageLocked && (
+              {!isStageLocked && currentStage.allowDivergence !== false && (
                 <button 
                   onClick={() => {
                     setDivergenceStageId(currentStage.id);
@@ -780,7 +780,7 @@ const ChecklistRunner: React.FC<{ template: ChecklistTemplate, onBack: () => voi
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          {template.externalData && template.externalData.length > 0 && (
+          {template.allowExternalData !== false && template.externalData && template.externalData.length > 0 && (
             <section className="bg-white p-4 rounded-3xl shadow-sm border border-blue-100 space-y-4">
               <div className="flex items-center justify-between">
                 <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest">

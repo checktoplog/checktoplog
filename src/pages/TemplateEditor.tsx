@@ -17,9 +17,10 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
     customIdPlaceholder: '',
     image: '',
     stages: [
-      { id: 'stg_1', name: 'Etapa na Empresa', questions: [], videos: [] },
-      { id: 'stg_2', name: 'Etapa no Cliente', questions: [], videos: [] }
-    ]
+      { id: 'stg_1', name: 'Etapa na Empresa', questions: [], videos: [], allowDivergence: true },
+      { id: 'stg_2', name: 'Etapa no Cliente', questions: [], videos: [], allowDivergence: true }
+    ],
+    allowExternalData: true
   });
 
   const [saving, setSaving] = useState(false);
@@ -74,7 +75,8 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
               image: existing.image || '',
               stages: existing.stages || [],
               externalData: existing.externalData || [],
-              externalDataImportedAt: existing.externalDataImportedAt
+              externalDataImportedAt: existing.externalDataImportedAt,
+              allowExternalData: existing.allowExternalData !== undefined ? existing.allowExternalData : true
             });
           } else {
             alert("Template não encontrado.");
@@ -123,7 +125,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
   const addStage = () => {
     setTemplate(prev => ({
       ...prev,
-      stages: [...prev.stages, { id: `stg_${Math.random().toString(36).substr(2, 9)}`, name: `Nova Etapa`, questions: [], videos: [] }]
+      stages: [...prev.stages, { id: `stg_${Math.random().toString(36).substr(2, 9)}`, name: `Nova Etapa`, questions: [], videos: [], allowDivergence: true }]
     }));
   };
 
@@ -246,13 +248,31 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
             </label>
           </div>
         </div>
+        <div className="flex flex-col justify-center">
+          <label className={`flex items-center gap-2 cursor-pointer p-4 rounded-xl border transition-colors ${template.allowExternalData ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-100'}`}>
+            <input 
+              type="checkbox" 
+              className="hidden" 
+              checked={template.allowExternalData} 
+              onChange={e => setTemplate(prev => ({ ...prev, allowExternalData: e.target.checked }))} 
+            />
+            <span className="text-xl">{template.allowExternalData ? '✅' : '⬜'}</span>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase">Habilitar Importação Excel (OS)</span>
+              <span className={`text-[8px] font-bold uppercase ${template.allowExternalData ? 'text-blue-100' : 'text-gray-400'}`}>
+                Permite importar e selecionar ordens de serviço
+              </span>
+            </div>
+          </label>
+        </div>
       </section>
 
-      <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-blue-100 space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xl">📊</span>
-          <h3 className="text-lg font-black uppercase text-blue-900">Importar Dados do Excel (OS)</h3>
-        </div>
+      {template.allowExternalData && (
+        <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-blue-100 space-y-4 animate-scaleDown">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xl">📊</span>
+            <h3 className="text-lg font-black uppercase text-blue-900">Importar Dados do Excel (OS)</h3>
+          </div>
         <p className="text-xs text-gray-500 font-bold">
           Cole abaixo as colunas do Excel na ordem: <br/>
           <span className="text-blue-600">Doca | Tipo Programação | OS | Veículo | Data Início | Data Final | Cód Produto | Descrição Produto | Cliente</span>
@@ -339,14 +359,15 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
           </div>
         )}
       </section>
+    )}
 
       {template.stages.map((stage, sIdx) => (
         <div key={stage.id} className="bg-white rounded-[2rem] border-l-8 border-orange-600 overflow-hidden shadow-sm border border-gray-100">
           <div className="p-6 bg-orange-50/50 border-b flex justify-between items-center">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-1">
               <span className="bg-orange-600 text-white w-10 h-10 flex items-center justify-center rounded-xl font-black">{sIdx + 1}</span>
               <input 
-                className="bg-transparent border-b border-orange-200 text-lg font-black outline-none focus:border-orange-600"
+                className="bg-transparent border-b border-orange-200 text-lg font-black outline-none focus:border-orange-600 flex-1 max-w-sm"
                 value={stage.name || ''}
                 onChange={e => {
                   const newStages = [...template.stages];
@@ -354,8 +375,22 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ onBack, editId }) => {
                   setTemplate({...template, stages: newStages});
                 }}
               />
+              <label className={`flex items-center gap-2 cursor-pointer px-4 py-2 rounded-xl border transition-colors ${stage.allowDivergence !== false ? 'bg-red-50 text-red-600 border-red-100' : 'bg-white border-gray-100 text-gray-400'}`}>
+                <input 
+                  type="checkbox" 
+                  className="hidden" 
+                  checked={stage.allowDivergence !== false} 
+                  onChange={e => {
+                    const newStages = [...template.stages];
+                    newStages[sIdx].allowDivergence = e.target.checked;
+                    setTemplate({...template, stages: newStages});
+                  }} 
+                />
+                <span className="text-sm">{stage.allowDivergence !== false ? '⚠️' : '⚪'}</span>
+                <span className="text-[10px] font-black uppercase">Divergência</span>
+              </label>
             </div>
-            <button onClick={() => removeStage(sIdx)} className="text-red-500 font-bold">Excluir</button>
+            <button onClick={() => removeStage(sIdx)} className="text-red-500 font-bold text-xs uppercase ml-4">Excluir</button>
           </div>
 
           <div className="p-6 space-y-4">

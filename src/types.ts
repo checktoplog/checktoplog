@@ -29,6 +29,7 @@ export interface Stage {
   name: string;
   questions: Question[];
   videos: string[]; 
+  allowDivergence?: boolean; 
 }
 
 export interface ExternalDataRow {
@@ -54,6 +55,7 @@ export interface ChecklistTemplate {
   image?: string; 
   externalData?: ExternalDataRow[];
   externalDataImportedAt?: string;
+  allowExternalData?: boolean;
 }
 
 export interface Divergence {
