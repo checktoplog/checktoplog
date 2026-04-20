@@ -1,21 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { motion } from 'motion/react';
-import { useAuth } from '../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
-  const { error: authContextError, signOut } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (authContextError) {
-      setError(authContextError);
-    }
-  }, [authContextError]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,25 +71,13 @@ const LoginPage: React.FC = () => {
           </div>
 
           {error && (
-            <div className="space-y-4">
-              <motion.div 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-red-50 text-red-600 p-4 rounded-2xl text-[10px] font-black uppercase tracking-tight text-center border border-red-100"
-              >
-                {error}
-              </motion.div>
-              
-              {authContextError && (
-                <button 
-                  type="button"
-                  onClick={() => signOut()}
-                  className="w-full bg-gray-100 text-gray-500 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
-                >
-                  Limpar Sessão e Tentar Novamente
-                </button>
-              )}
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-red-50 text-red-600 p-4 rounded-2xl text-[10px] font-black uppercase tracking-tight text-center border border-red-100"
+            >
+              {error}
+            </motion.div>
           )}
 
           <button 

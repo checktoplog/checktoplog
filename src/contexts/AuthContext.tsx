@@ -9,7 +9,6 @@ interface AuthContextType {
   user: AppUser | null;
   session: Session | null;
   loading: boolean;
-  error: string | null;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -20,62 +19,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const fetchUserProfile = async (sessionUser: SupabaseUser) => {
     try {
-      setError(null);
       const appUser = await supabaseService.syncUser(sessionUser);
       setUser(appUser);
-    } catch (err: any) {
-      console.error('Error fetching user profile:', err);
-      setError(err.message || "Erro inesperado ao sincronizar perfil.");
-      
-      // We don't set a fallback user anymore because we need the real profile to proceed safely
-      // unless it's a simple connection error where we might want to try again.
-      setUser(null);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      // Fallback to minimal user if sync fails but session exists
+      setUser({
+        id: sessionUser.id,
+        email: sessionUser.email || '',
+        name: sessionUser.user_metadata?.full_name || sessionUser.email?.split('@')[0] || 'User',
+        role: 'USER',
+        allowedScreens: ['dashboard', 'checklists']
+      });
     }
   };
 
   useEffect(() => {
-    let mounted = true;
-
     // Check active session
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        if (!mounted) return;
-        setSession(session);
-        if (session?.user) {
-          fetchUserProfile(session.user);
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch(err => {
-        if (!mounted) return;
-        console.error("Critical Auth Error:", err);
-        setError("Erro ao inicializar serviço de autenticação.");
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        fetchUserProfile(session.user);
+      } else {
         setLoading(false);
-      });
+      }
+    });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
       setSession(session);
       if (session?.user) {
         await fetchUserProfile(session.user);
       } else {
         setUser(null);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {
@@ -92,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, error, signOut, refreshUser }}>
+    <AuthContext.Provider value={{ user, session, loading, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
