@@ -227,9 +227,17 @@ const ChecklistSummary: React.FC<ChecklistSummaryProps> = ({ template, responseI
                               </div>
                             )}
                           </div>
+                        ) : q.type === 'IMAGE' ? (
+                          <div className={`mt-2 inline-block px-4 py-1.5 rounded-lg text-xs font-black uppercase shadow-sm border ${qData.imgs.length > 0 ? 'bg-green-50 text-green-700 border-green-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+                            {qData.imgs.length > 0 ? 'FOTOS REGISTRADAS' : 'NÃO RESPONDIDO'}
+                          </div>
+                        ) : q.type === 'DOCUMENT' ? (
+                          <div className={`mt-2 inline-block px-4 py-1.5 rounded-lg text-xs font-black uppercase shadow-sm border ${qData.docs.length > 0 ? 'bg-green-50 text-green-700 border-green-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+                            {qData.docs.length > 0 ? 'DOCUMENTOS ANEXADOS' : 'NÃO RESPONDIDO'}
+                          </div>
                         ) : (
-                          <div className="mt-2 inline-block px-4 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-black uppercase shadow-sm border border-orange-100">
-                            {Array.isArray(qData.val) ? qData.val.join(', ') : String(qData.val || 'Não respondido')}
+                          <div className={`mt-2 inline-block px-4 py-1.5 rounded-lg text-xs font-black uppercase shadow-sm border ${(Array.isArray(qData.val) ? qData.val.length > 0 : qData.val) ? 'bg-green-50 text-green-700 border-green-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+                            {Array.isArray(qData.val) ? (qData.val.length > 0 ? qData.val.join(', ') : 'NÃO RESPONDIDO') : String(qData.val || 'NÃO RESPONDIDO')}
                           </div>
                         )}
                       </div>

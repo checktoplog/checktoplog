@@ -133,23 +133,6 @@ const deleteLocal = (key: string, id: string) => {
 
 export const supabaseService = {
   // Auth
-  async loginWithCode(code: string): Promise<User | null> {
-    // Retorna sempre o administrador padrão para simplificar, já que o login foi removido
-    const adminUser: User = {
-      id: '00000000-0000-0000-0000-000000000000',
-      name: 'Administrador',
-      email: 'admin@checktoplog.com',
-      role: 'ADMIN',
-      allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
-    };
-    try {
-      localStorage.setItem('checklist_user', JSON.stringify(adminUser));
-    } catch (e) {
-      console.error("Error saving user to localStorage:", e);
-    }
-    return adminUser;
-  },
-
   async syncUser(sessionUser: any): Promise<User | null> {
     if (!sessionUser) return null;
     if (!canUseSupabase()) {
@@ -160,29 +143,47 @@ export const supabaseService = {
     if (!email) return null;
 
     try {
+      // 1. First, check if there are ANY users in the database
+      let isFirstUser = false;
+      try {
+        const { count, error: countError } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true });
+        
+        if (countError) throw countError;
+        isFirstUser = count === 0;
+      } catch (err: any) {
+        // If table doesn't exist, it might fail here
+        console.warn("Could not check user count, table might not exist:", err);
+        if (err.code === '42P01') {
+          throw new Error("A tabela 'users' não existe no banco de dados. Vá em 'Equipe' e execute o script SQL de configuração.");
+        }
+      }
+
+      // 2. Fetch the current user
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('email', email)
         .single();
 
-      if (error && checkSupabaseError(error)) {
-        throw new Error('Erro de conexão com o banco de dados do Supabase.');
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows found"
+        if (checkSupabaseError(error)) {
+          throw new Error('Erro de conexão com o banco de dados do Supabase.');
+        }
+        console.error("Erro ao buscar usuário:", error);
       }
 
-      if (error || !data) {
-        // Se o usuário não existe na tabela 'users', mas está autenticado no Auth,
-        // podemos decidir se criamos ele ou se bloqueamos. 
-        // Para ser seguro e seguir a regra "apenas senha do supabase", 
-        // vamos tentar criar com permissões mínimas ou conforme a lógica anterior, 
-        // mas sem o fallback de "ADMIN" genérico se falhar a escrita.
-        
+      if (!data) {
+        // Create user profile if it doesn't exist
         const dbUser = {
           id: sessionUser.id,
           email,
           name: sessionUser.user_metadata?.full_name || email.split('@')[0],
-          role: 'USER', // Default to USER for new signups
-          allowed_screens: ['dashboard', 'checklists'], // Minimal screens
+          role: isFirstUser ? 'ADMIN' : 'USER',
+          allowed_screens: isFirstUser 
+            ? ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'] 
+            : ['dashboard', 'checklists'],
           updated_at: new Date().toISOString()
         };
         
@@ -193,8 +194,15 @@ export const supabaseService = {
           .single();
           
         if (createError || !created) {
-          console.error("Erro ao criar perfil de usuário no Supabase:", createError);
-          throw new Error("Seu usuário está autenticado, mas não foi possível criar seu perfil no banco de dados.");
+          console.error("Erro detalhado ao criar perfil:", createError);
+          const technicalMsg = createError?.message || "Erro desconhecido";
+          const code = createError?.code || "";
+          
+          if (code === '42P01') {
+            throw new Error("A tabela 'users' não existe no banco. Vá em 'Equipe' e execute o script SQL completo.");
+          }
+          
+          throw new Error(`Seu usuário está autenticado, mas não foi possível criar seu perfil no banco de dados. Erro: ${technicalMsg}`);
         }
         
         const mappedUser: User = {
@@ -205,11 +213,7 @@ export const supabaseService = {
           allowedScreens: created.allowed_screens
         };
         
-        try {
-          localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
-        } catch (e) {
-          console.error("Error saving user to localStorage:", e);
-        }
+        localStorage.setItem('checklist_user', JSON.stringify(mappedUser));
         return mappedUser;
       }
 
@@ -221,14 +225,10 @@ export const supabaseService = {
         allowedScreens: data.allowed_screens
       };
 
-      try {
-        localStorage.setItem('checklist_user', JSON.stringify(mappedData));
-      } catch (e) {
-        console.error("Error saving user to localStorage:", e);
-      }
+      localStorage.setItem('checklist_user', JSON.stringify(mappedData));
       return mappedData;
     } catch (err: any) {
-      console.error('Erro ao sincronizar usuário:', err);
+      console.error('Erro crítico na sincronização:', err);
       throw err;
     }
   },
