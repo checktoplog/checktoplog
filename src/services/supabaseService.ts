@@ -133,6 +133,23 @@ const deleteLocal = (key: string, id: string) => {
 
 export const supabaseService = {
   // Auth
+  async loginWithCode(code: string): Promise<User | null> {
+    // Retorna sempre o administrador padrão para simplificar, já que o login foi removido
+    const adminUser: User = {
+      id: '00000000-0000-0000-0000-000000000000',
+      name: 'Administrador',
+      email: 'admin@checktoplog.com',
+      role: 'ADMIN',
+      allowedScreens: ['dashboard', 'templates', 'checklists', 'reports', 'batch_download', 'users'],
+    };
+    try {
+      localStorage.setItem('checklist_user', JSON.stringify(adminUser));
+    } catch (e) {
+      console.error("Error saving user to localStorage:", e);
+    }
+    return adminUser;
+  },
+
   async syncUser(sessionUser: any): Promise<User | null> {
     if (!sessionUser) return null;
     if (!canUseSupabase()) {

@@ -67,11 +67,17 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
-import LoginPage from './pages/LoginPage.tsx';
+const GUEST_USER: User = {
+  id: '00000000-0000-0000-0000-000000000000',
+  name: 'Administrador',
+  email: 'admin@checktoplog.com',
+  role: 'ADMIN',
+  allowedScreens: ['templates', 'checklists', 'reports', 'batch_download', 'users'],
+};
 
-const AppContent: React.FC = () => {
-  const { user, loading: authLoading, signOut } = useAuth();
+const App: React.FC = () => {
+  const [isAuthorized, setIsAuthorized] = useState(true);
+  const [user, setUser] = useState<User | null>(GUEST_USER);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState('templates');
 
@@ -82,11 +88,7 @@ const AppContent: React.FC = () => {
   const [filterDate, setFilterDate] = useState('');
   const [filterTemplateId, setFilterTemplateId] = useState('');
 
-  const userRef = useRef<User | null>(null);
-
-  useEffect(() => {
-    userRef.current = user;
-  }, [user]);
+  const userRef = useRef<User | null>(GUEST_USER);
 
   const [activeTemplate, setActiveTemplate] = useState<ChecklistTemplate | null>(null);
   const [editTemplateId, setEditTemplateId] = useState<string | undefined>();
@@ -187,8 +189,9 @@ const AppContent: React.FC = () => {
   }, [loadData]);
 
   const handleLogout = async () => {
-    if (window.confirm('Deseja realmente sair?')) {
-      await signOut();
+    if (window.confirm('Deseja realmente limpar a sessão local?')) {
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
@@ -434,26 +437,14 @@ const AppContent: React.FC = () => {
     }
   };
 
-  if (authLoading || (loading && templates.length === 0)) return <div className="h-screen w-full flex items-center justify-center bg-gray-50"><div className="w-16 h-16 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div></div>;
-
-  if (!user) {
-    return <LoginPage />;
-  }
+  if (loading) return <div className="h-screen w-full flex items-center justify-center bg-gray-50"><div className="w-16 h-16 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div></div>;
 
   return (
     <ErrorBoundary>
-      <Layout user={user} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
+      <Layout user={user || GUEST_USER} onLogout={handleLogout} currentPage={currentPage} onNavigate={setCurrentPage}>
         {renderContent()}
       </Layout>
     </ErrorBoundary>
-  );
-};
-
-const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
   );
 };
 
